@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../core/models/browser_tab.dart';
 import '../../core/platform/native_bridge.dart';
@@ -25,6 +26,8 @@ class BrowserController extends ChangeNotifier {
   final List<BrowserTab> closedTabs = [];
   final Map<int, String> _ids = {};
   final Map<String, MethodChannel> _channels = {};
+  final Set<String> _capturingThumbnails = {};
+  final Set<String> _thumbnailCapturedForLoad = {};
   final Map<String, String> _pendingOffline = {};
   final Map<String, List<Map<String, dynamic>>> foundMedia = {};
   late StreamSubscription<Map<String, dynamic>> _events;
@@ -32,6 +35,16 @@ class BrowserController extends ChangeNotifier {
   int selected = 0;
   BrowserTab get current => tabs[selected];
   bool get privateMode => store.privateMode;
+  bool get darkTheme {
+    final legacy = store.setting('darkTheme', false) == true;
+    return switch (store.setting('themeMode', legacy ? 'dark' : 'system')) {
+      'dark' => true,
+      'light' => false,
+      _ =>
+        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+            Brightness.dark,
+    };
+  }
 
   void attach(int view, BrowserTab tab) {
     _ids[view] = tab.id;
@@ -39,6 +52,26 @@ class BrowserController extends ChangeNotifier {
     final offline = _pendingOffline.remove(tab.id);
     if (offline != null) {
       _channels[tab.id]!.invokeMethod('openOffline', {'path': offline});
+    }
+  }
+
+  Future<void> captureThumbnails() async {
+    final tab = current;
+    if (tab.atHome) return;
+    final channel = _channels[tab.id];
+    if (channel == null || !_capturingThumbnails.add(tab.id)) return;
+    try {
+      final image = await channel.invokeMethod<Uint8List>('captureThumbnail');
+      if (image != null && tabs.contains(tab)) {
+        tab.thumbnail = image;
+        notifyListeners();
+      }
+    } on PlatformException {
+      // The view may be disposed while Android is drawing the preview.
+    } on MissingPluginException {
+      // The native view can disappear before its channel responds.
+    } finally {
+      _capturingThumbnails.remove(tab.id);
     }
   }
 
@@ -68,6 +101,7 @@ class BrowserController extends ChangeNotifier {
         tab.title = event['title'] as String? ?? tab.title;
         tab.progress = ((event['progress'] as num?) ?? 0) / 100;
         tab.loading = tab.progress < 1;
+        if (tab.loading) _thumbnailCapturedForLoad.remove(tab.id);
         tab.failed = event['failed'] == true;
         tab.canBack = event['back'] == true;
         tab.canForward = event['forward'] == true;
@@ -83,7 +117,17 @@ class BrowserController extends ChangeNotifier {
           }, limit: 2000);
         }
         notifyListeners();
+        if (tab == current &&
+            !tab.loading &&
+            !tab.failed &&
+            !tab.atHome &&
+            _thumbnailCapturedForLoad.add(tab.id)) {
+          captureThumbnails();
+        }
         if (!tab.loading) persist();
+      case 'scroll':
+        // Keep the initial post-load tab preview locked while the page scrolls.
+        return;
       case 'media':
         if (id != null) {
           final media = foundMedia.putIfAbsent(id, () => []);
@@ -157,6 +201,7 @@ class BrowserController extends ChangeNotifier {
 
   void close(int index) {
     final removed = tabs.removeAt(index);
+    _thumbnailCapturedForLoad.remove(removed.id);
     if (!privateMode) closedTabs.add(removed);
     _channels.remove(removed.id);
     _ids.removeWhere((key, value) => value == removed.id);
@@ -219,6 +264,7 @@ class BrowserController extends ChangeNotifier {
     for (final channel in _channels.values) {
       await channel.invokeMethod('settings', {
         'font': store.setting('font', 100),
+        'darkTheme': darkTheme,
         'adBlock': store.setting('adBlock', false),
         'offerSavePasswords': store.setting('offerSavePasswords', true),
         'passwordPromptBlockedOrigins': store.setting(

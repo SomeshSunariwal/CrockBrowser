@@ -22,6 +22,10 @@ class HomeScreen extends StatelessWidget {
   final ValueChanged<Map<String, dynamic>> onShortcut, onEditShortcut;
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final privateBackground = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF201D32)
+        : const Color(0xFFECE9FA);
     final tools = [
       ('Downloads', Icons.download_rounded, 'downloads', CrockTheme.blue),
       (
@@ -49,8 +53,8 @@ class HomeScreen extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomRight,
                 colors: privateMode
-                    ? [const Color(0xFFECE9FA), CrockTheme.background]
-                    : [CrockTheme.background, const Color(0xFFEDF8FF)],
+                    ? [privateBackground, colors.surface]
+                    : [colors.surface, colors.surfaceContainerLow],
               ),
             ),
             child: Padding(
@@ -65,12 +69,12 @@ class HomeScreen extends StatelessWidget {
                           label: Text('Private session'),
                         )
                       else
-                        const Text(
+                        Text(
                           'YOUR WINDOW TO THE WEB',
                           style: TextStyle(
                             fontSize: 10,
                             letterSpacing: 2,
-                            color: Color(0xFF8796A6),
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       const Spacer(),
@@ -86,8 +90,8 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 18),
                   Text(
                     privateMode ? 'Browse privately' : 'Crock Browser',
-                    style: const TextStyle(
-                      color: CrockTheme.ink,
+                    style: TextStyle(
+                      color: colors.onSurface,
                       fontSize: 34,
                       fontWeight: FontWeight.w300,
                       letterSpacing: -1.2,
@@ -96,7 +100,7 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 30),
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: colors.surface,
                       borderRadius: BorderRadius.circular(36),
                       boxShadow: const [
                         BoxShadow(
@@ -169,8 +173,8 @@ class HomeScreen extends StatelessWidget {
                         ? 'Private history and tabs stay out of your saved session.'
                         : 'A little curiosity. A whole wide web.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xFF8796A6),
+                    style: TextStyle(
+                      color: colors.onSurfaceVariant,
                       fontSize: 12,
                       height: 1.5,
                     ),
@@ -209,9 +213,14 @@ class _HomeTool extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: color,
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            alignment: Alignment.center,
             child: Icon(icon, color: Colors.white, size: 25),
           ),
           const SizedBox(height: 9),
@@ -220,8 +229,8 @@ class _HomeTool extends StatelessWidget {
             maxLines: 2,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: CrockTheme.ink,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 11,
               height: 1.25,
             ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
-import '../../core/theme/crock_theme.dart';
 import '../../shared/widgets/crock_logo.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import '../browser/browser_controller.dart';
@@ -27,13 +26,18 @@ class SettingsScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFE8F4FF), Color(0xFFEDFBFF)],
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.surfaceContainerLow,
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: const Color(0xFFDCEFFF)),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
             child: Row(
               children: [
@@ -48,9 +52,12 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 5),
-                      const Text(
+                      Text(
                         'A better view of your web.',
-                        style: TextStyle(fontSize: 12, color: CrockTheme.muted),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -200,18 +207,24 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 30),
-          const Center(
+          Center(
             child: Text(
               'Crock Browser 1.0',
-              style: TextStyle(fontSize: 12, color: CrockTheme.muted),
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(height: 6),
-          const Center(
+          Center(
             child: Text(
               'Your bookmarks and files stay on your device.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: CrockTheme.muted),
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],

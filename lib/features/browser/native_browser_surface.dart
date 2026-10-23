@@ -29,6 +29,7 @@ class NativeBrowserSurface extends StatelessWidget {
         'url': tab.url.startsWith('http') ? tab.url : '',
         'desktop': tab.desktop,
         'font': browser.store.setting('font', 100),
+        'darkTheme': browser.darkTheme,
         'adBlock': browser.store.setting('adBlock', false),
         'offerSavePasswords': browser.store.setting('offerSavePasswords', true),
         'passwordPromptBlockedOrigins': browser.store.setting(

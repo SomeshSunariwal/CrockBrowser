@@ -25,9 +25,9 @@ class BrowserAddressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: Colors.white,
+    color: Theme.of(context).colorScheme.surface,
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         children: [
           IconButton(
@@ -36,20 +36,20 @@ class BrowserAddressBar extends StatelessWidget {
             padding: EdgeInsets.zero,
             visualDensity: VisualDensity.compact,
             constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-            icon: const Icon(
+            icon: Icon(
               Icons.home_outlined,
               size: 24,
-              color: CrockTheme.muted,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           Expanded(
             child: TextField(
               controller: controller,
               focusNode: focusNode,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 height: 1.25,
-                color: CrockTheme.ink,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
               textAlignVertical: TextAlignVertical.center,
               textInputAction: TextInputAction.go,
@@ -73,7 +73,7 @@ class BrowserAddressBar extends StatelessWidget {
                       ? Icons.lock_outline_rounded
                       : Icons.public_rounded,
                   size: 15,
-                  color: CrockTheme.muted,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
               onTap: () => controller.selection = TextSelection(
@@ -94,14 +94,17 @@ class BrowserAddressBar extends StatelessWidget {
               height: 23,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                border: Border.all(width: 1.5, color: CrockTheme.ink),
+                border: Border.all(
+                  width: 1.5,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 borderRadius: BorderRadius.circular(5),
               ),
               child: Text(
                 '$tabCount',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
-                  color: CrockTheme.ink,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -140,6 +143,13 @@ class BrowserAddressBar extends StatelessWidget {
                   ),
                 ),
                 PopupMenuItem(
+                  value: 'downloads',
+                  child: _BrowserMenuItem(
+                    icon: Icons.download_rounded,
+                    label: 'Downloads',
+                  ),
+                ),
+                PopupMenuItem(
                   value: 'find',
                   child: _BrowserMenuItem(
                     icon: Icons.search_rounded,
@@ -168,10 +178,10 @@ class BrowserAddressBar extends StatelessWidget {
                   ),
                 ),
               ],
-              icon: const Icon(
+              icon: Icon(
                 Icons.more_vert_rounded,
                 size: 22,
-                color: CrockTheme.muted,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -192,7 +202,10 @@ class _BrowserMenuItem extends StatelessWidget {
     children: [
       Icon(icon, size: 20, color: CrockTheme.blue),
       const SizedBox(width: 14),
-      Text(label, style: const TextStyle(color: CrockTheme.ink)),
+      Text(
+        label,
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+      ),
     ],
   );
 }

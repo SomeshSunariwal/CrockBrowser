@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/crock_theme.dart';
 import '../../../shared/widgets/site_icon.dart';
 
 class RecentSites extends StatelessWidget {
@@ -16,6 +15,7 @@ class RecentSites extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final ordered = [...history]
       ..sort(
         (a, b) => ((b['created'] as num?) ?? 0).compareTo(
@@ -42,11 +42,11 @@ class RecentSites extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'Recently visited',
                 style: TextStyle(
-                  color: CrockTheme.ink,
+                  color: colors.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
                 ),
@@ -59,22 +59,22 @@ class RecentSites extends StatelessWidget {
         const SizedBox(height: 6),
         Card(
           child: sites.isEmpty
-              ? const Padding(
+              ? Padding(
                   padding: EdgeInsets.all(20),
                   child: Row(
                     children: [
                       Icon(
                         Icons.history_rounded,
-                        color: CrockTheme.muted,
+                        color: colors.onSurfaceVariant,
                         size: 24,
                       ),
-                      SizedBox(width: 14),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Text(
                           'Sites you visit will appear here.',
                           style: TextStyle(
                             fontSize: 13,
-                            color: CrockTheme.muted,
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -85,7 +85,7 @@ class RecentSites extends StatelessWidget {
                   children: [
                     for (var i = 0; i < sites.length; i++) ...[
                       if (i > 0) const Divider(indent: 56, endIndent: 12),
-                      _site(sites[i]),
+                      _site(context, sites[i]),
                     ],
                   ],
                 ),
@@ -94,7 +94,8 @@ class RecentSites extends StatelessWidget {
     );
   }
 
-  Widget _site(Map<String, dynamic> site) {
+  Widget _site(BuildContext context, Map<String, dynamic> site) {
+    final colors = Theme.of(context).colorScheme;
     final url = site['url'].toString();
     final host = Uri.parse(url).host.replaceFirst(RegExp(r'^www\.'), '');
     final title = site['title']?.toString().trim() ?? '';
@@ -111,7 +112,7 @@ class RecentSites extends StatelessWidget {
                 height: 32,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF6F9FE),
+                  color: colors.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: SiteIcon(
@@ -130,27 +131,27 @@ class RecentSites extends StatelessWidget {
                       title.isEmpty ? host : title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: CrockTheme.ink,
+                        color: colors.onSurface,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       host,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: CrockTheme.muted,
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(
+              Icon(
                 Icons.north_east_rounded,
-                color: CrockTheme.muted,
+                color: colors.onSurfaceVariant,
                 size: 17,
               ),
             ],

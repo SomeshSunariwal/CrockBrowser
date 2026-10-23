@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
@@ -23,6 +24,8 @@ class DownloadsScreen extends StatefulWidget {
 
 class _DownloadsScreenState extends State<DownloadsScreen> {
   String filter = 'all';
+  bool _inProgressExpanded = true;
+  bool _completedExpanded = false;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.downloads,
@@ -42,6 +45,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 (filter == 'failed' &&
                     ['failed', 'cancelled'].contains(task['state'])),
           )
+          .toList();
+      const activeStates = {'queued', 'running', 'retrying', 'paused'};
+      final inProgressTasks = tasks
+          .where((task) => activeStates.contains(task['state']))
+          .toList();
+      final completedTasks = tasks
+          .where((task) => !activeStates.contains(task['state']))
           .toList();
       final active = widget.downloads.tasks
           .where((t) => t['state'] == 'running')
@@ -158,11 +168,48 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     )
                   : RefreshIndicator(
                       onRefresh: widget.downloads.refresh,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                        itemCount: tasks.length,
-                        itemBuilder: (context, index) => _task(tasks[index]),
-                      ),
+                      child: filter == 'all'
+                          ? ListView(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                32,
+                              ),
+                              children: [
+                                _sectionHeader(
+                                  title: 'In progress',
+                                  count: inProgressTasks.length,
+                                  expanded: _inProgressExpanded,
+                                  onTap: () => setState(() {
+                                    _inProgressExpanded = !_inProgressExpanded;
+                                  }),
+                                ),
+                                if (_inProgressExpanded)
+                                  ...inProgressTasks.map(_task),
+                                _sectionHeader(
+                                  title: 'Completed',
+                                  count: completedTasks.length,
+                                  expanded: _completedExpanded,
+                                  onTap: () => setState(() {
+                                    _completedExpanded = !_completedExpanded;
+                                  }),
+                                ),
+                                if (_completedExpanded)
+                                  ...completedTasks.map(_task),
+                              ],
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                32,
+                              ),
+                              itemCount: tasks.length,
+                              itemBuilder: (context, index) =>
+                                  _task(tasks[index]),
+                            ),
                     ),
             ),
           ],
@@ -170,172 +217,281 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       );
     },
   );
+
+  Widget _sectionHeader({
+    required String title,
+    required int count,
+    required bool expanded,
+    required VoidCallback onTap,
+  }) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(12),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(
+            '$count',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Icon(
+            expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    ),
+  );
+
   Widget _task(Map<String, dynamic> task) {
     final state = task['state'] as String;
     final bytes = (task['bytes'] as num? ?? 0),
         total = (task['total'] as num? ?? -1);
     final running = state == 'running', complete = state == 'complete';
     return Card(
+      key: ValueKey('download-${task['id']}'),
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(11),
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEAF3FF),
-                    borderRadius: BorderRadius.circular(13),
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     complete
                         ? Icons.check_circle_outline_rounded
                         : Icons.insert_drive_file_outlined,
-                    color: const Color(0xFF087CFA),
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 21,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        task['name'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                  child: SizedBox(
+                    height: 40,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          task['name']?.toString() ?? 'Download',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 3),
+                        Text(
+                          Uri.tryParse(task['url']?.toString() ?? '')?.host ?? '',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    onSelected: (action) => _action(task, action),
+                    itemBuilder: (context) => [
+                      if (complete &&
+                          task['stream'] != true &&
+                          task['torrent'] != true &&
+                          isSupportedArchive(task['name'].toString()))
+                        const PopupMenuItem(
+                          value: 'extract',
+                          child: Text('Extract archive'),
+                        ),
+                      if (complete)
+                        const PopupMenuItem(
+                          value: 'open',
+                          child: Text('Open file'),
+                        ),
+                      if (complete &&
+                          task['stream'] != true &&
+                          task['torrent'] != true)
+                        const PopupMenuItem(
+                          value: 'share',
+                          child: Text('Share file'),
+                        ),
+                      if (complete &&
+                          task['stream'] != true &&
+                          task['torrent'] != true)
+                        const PopupMenuItem(
+                          value: 'export',
+                          child: Text('Save a copy…'),
+                        ),
+                      if (!complete)
+                        const PopupMenuItem(
+                          value: 'cancel',
+                          child: Text('Cancel download'),
+                        ),
+                      const PopupMenuItem(
+                        value: 'remove',
+                        child: Text('Remove download and local file'),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        Uri.tryParse(task['url'] as String)?.host ?? '',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF8796A6),
+                    ],
+                    icon: const Icon(Icons.more_vert_rounded),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(
+            height: 1,
+            thickness: 1,
+            indent: 12,
+            endIndent: 12,
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          SizedBox(
+            height: 73,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 60,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (!complete)
+                        Center(
+                          child: IconButton(
+                            tooltip:
+                                running ||
+                                    state == 'queued' ||
+                                    state == 'retrying'
+                                ? 'Pause'
+                                : 'Resume',
+                            onPressed: () => _action(
+                              task,
+                              running ||
+                                      state == 'queued' ||
+                                      state == 'retrying'
+                                  ? 'pause'
+                                  : 'resume',
+                            ),
+                            icon: Icon(
+                              running ||
+                                      state == 'queued' ||
+                                      state == 'retrying'
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      Positioned(
+                        top: 0,
+                        bottom: 0,
+                        right: 0,
+                        child: ColoredBox(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                          child: const SizedBox(width: 1),
                         ),
                       ),
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  onSelected: (action) => _action(task, action),
-                  itemBuilder: (context) => [
-                    if (complete &&
-                        task['stream'] != true &&
-                        task['torrent'] != true &&
-                        isSupportedArchive(task['name'].toString()))
-                      const PopupMenuItem(
-                        value: 'extract',
-                        child: Text('Extract archive'),
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _DownloadSpeedGraph(
+                        key: ValueKey(task['id']),
+                        speed: running
+                            ? (task['speed'] as num? ?? 0).toDouble()
+                            : 0,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
-                    if (complete)
-                      const PopupMenuItem(
-                        value: 'open',
-                        child: Text('Open file'),
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        right: 12,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${byteLabel(bytes)}${total > 0 ? ' / ${byteLabel(total)}' : ''}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              running
+                                  ? '${byteLabel(task['speed'] as num? ?? 0)}/s'
+                                  : state[0].toUpperCase() + state.substring(1),
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: complete
+                                    ? Theme.of(context).colorScheme.tertiary
+                                    : Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    if (complete &&
-                        task['stream'] != true &&
-                        task['torrent'] != true)
-                      const PopupMenuItem(
-                        value: 'share',
-                        child: Text('Share file'),
-                      ),
-                    if (complete &&
-                        task['stream'] != true &&
-                        task['torrent'] != true)
-                      const PopupMenuItem(
-                        value: 'export',
-                        child: Text('Save a copy…'),
-                      ),
-                    if (!complete)
-                      const PopupMenuItem(
-                        value: 'cancel',
-                        child: Text('Cancel download'),
-                      ),
-                    const PopupMenuItem(
-                      value: 'remove',
-                      child: Text('Remove download and local file'),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 15),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                minHeight: 5,
-                value: total > 0
-                    ? (bytes / total).clamp(0, 1)
-                    : running
-                    ? null
-                    : 0,
-                backgroundColor: const Color(0xFFEEF2F7),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${byteLabel(bytes)}${total > 0 ? ' / ${byteLabel(total)}' : ''}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF75828F),
-                    ),
-                  ),
-                ),
-                Text(
-                  running
-                      ? '${byteLabel(task['speed'] as num? ?? 0)}/s'
-                      : state[0].toUpperCase() + state.substring(1),
+          ),
+          if ((task['error'] as String? ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  task['error'] as String,
                   style: TextStyle(
                     fontSize: 11,
-                    color: complete
-                        ? const Color(0xFF04A58E)
-                        : const Color(0xFF087CFA),
+                    color: Theme.of(context).colorScheme.error,
                   ),
                 ),
-                if (!complete)
-                  IconButton(
-                    tooltip: running || state == 'queued' || state == 'retrying'
-                        ? 'Pause'
-                        : 'Resume',
-                    onPressed: () => _action(
-                      task,
-                      running || state == 'queued' || state == 'retrying'
-                          ? 'pause'
-                          : 'resume',
-                    ),
-                    icon: Icon(
-                      running || state == 'queued' || state == 'retrying'
-                          ? Icons.pause_circle_outline
-                          : Icons.play_circle_outline,
-                    ),
-                  ),
-              ],
+              ),
             ),
-            if ((task['error'] as String? ?? '').isNotEmpty)
-              Text(
-                task['error'] as String,
-                style: const TextStyle(fontSize: 11, color: Color(0xFFC16843)),
-              ),
-            if (complete)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => _action(task, 'open'),
-                  child: const Text('Open file'),
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -513,4 +669,117 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       ),
     );
   }
+}
+
+class _DownloadSpeedGraph extends StatefulWidget {
+  const _DownloadSpeedGraph({
+    super.key,
+    required this.speed,
+    required this.color,
+  });
+
+  final double speed;
+  final Color color;
+
+  @override
+  State<_DownloadSpeedGraph> createState() => _DownloadSpeedGraphState();
+}
+
+class _DownloadSpeedGraphState extends State<_DownloadSpeedGraph> {
+  late final List<double> _samples = List<double>.filled(24, widget.speed);
+
+  @override
+  void didUpdateWidget(covariant _DownloadSpeedGraph oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.speed != widget.speed) {
+      _samples.add(widget.speed);
+      if (_samples.length > 32) _samples.removeAt(0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Download speed history chart',
+    child: ExcludeSemantics(
+      child: CustomPaint(
+        painter: _DownloadSpeedPainter(List<double>.of(_samples), widget.color),
+        child: const SizedBox.expand(),
+      ),
+    ),
+  );
+}
+
+class _DownloadSpeedPainter extends CustomPainter {
+  const _DownloadSpeedPainter(this.samples, this.color);
+
+  final List<double> samples;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (samples.isEmpty || size.isEmpty) return;
+
+    final peak = samples.fold<double>(
+      1,
+      (maximum, value) => value > maximum ? value : maximum,
+    );
+    final top = size.height * .40;
+    final bottom = size.height * .80;
+    final points = <Offset>[];
+    for (var index = 0; index < samples.length; index++) {
+      final x = samples.length == 1
+          ? 0.0
+          : size.width * index / (samples.length - 1);
+      final normalized = (samples[index] / peak).clamp(0.0, 1.0);
+      final y = bottom - normalized * (bottom - top);
+      points.add(Offset(x, y));
+    }
+
+    final line = Path()..moveTo(points.first.dx, points.first.dy);
+    for (var index = 1; index < points.length; index++) {
+      final previous = points[index - 1];
+      final current = points[index];
+      final segment = current.dx - previous.dx;
+      final before = points[index - 2 < 0 ? 0 : index - 2];
+      final after = points[index + 1 < points.length ? index + 1 : index];
+      final previousControlY = (previous.dy - (current.dy - before.dy) / 6)
+          .clamp(top, bottom)
+          .toDouble();
+      final currentControlY = (current.dy + (after.dy - previous.dy) / 6)
+          .clamp(top, bottom)
+          .toDouble();
+      line.cubicTo(
+        previous.dx + segment / 3,
+        previousControlY,
+        current.dx - segment / 3,
+        currentControlY,
+        current.dx,
+        current.dy,
+      );
+    }
+
+    final area = Path.from(line)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    final fill = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [color.withValues(alpha: .18), color.withValues(alpha: 0)],
+      ).createShader(Offset.zero & size);
+    canvas.drawPath(area, fill);
+
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.25
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(line, stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DownloadSpeedPainter oldDelegate) =>
+      oldDelegate.color != color || !listEquals(oldDelegate.samples, samples);
 }

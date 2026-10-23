@@ -46,7 +46,10 @@ class CrockEmpty extends StatelessWidget {
           Text(
             detail,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF75828F), height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           if (action != null)
             Padding(padding: const EdgeInsets.only(top: 20), child: action!),

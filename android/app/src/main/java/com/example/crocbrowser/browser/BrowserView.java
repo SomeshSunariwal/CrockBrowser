@@ -2,30 +2,41 @@ package com.example.crocbrowser.browser;
 
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Rect;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
+import android.view.ContextThemeWrapper;
+import android.view.PixelCopy;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.*;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import androidx.webkit.WebSettingsCompat;
+import androidx.webkit.WebViewFeature;
 import com.example.crocbrowser.browser.credentials.LoginCapture;
 import com.example.crocbrowser.core.HostChannel;
 import com.example.crocbrowser.core.JsonCodec;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.platform.PlatformView;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.*;
 
 public final class BrowserView implements PlatformView {
   private final HostChannel host;
   private final int id;
+  private final ContextThemeWrapper webContext;
   private final WebView view;
   private final SwipeRefreshLayout refreshLayout;
   private final LoginCapture loginCapture;
   private final MethodChannel channel;
   private final Set<String> media = java.util.concurrent.ConcurrentHashMap.newKeySet();
-  private boolean failed = false, blockAds = false, disposed = false;
+  private boolean failed = false, blockAds = false, disposed = false, darkTheme = false;
   private String normalAgent, lastTitle = "";
   private static final String[] AD_HOSTS = {
     "doubleclick.net",
@@ -47,7 +58,13 @@ public final class BrowserView implements PlatformView {
   public BrowserView(HostChannel host, int id, Map<String, Object> args) {
     this.host = host;
     this.id = id;
-    view = new WebView(host.activity);
+    webContext =
+        new ContextThemeWrapper(
+            host.activity,
+            Boolean.TRUE.equals(args.get("darkTheme"))
+                ? com.example.crocbrowser.R.style.BrowserWebViewDarkTheme
+                : com.example.crocbrowser.R.style.BrowserWebViewLightTheme);
+    view = new WebView(webContext);
     refreshLayout = new SwipeRefreshLayout(host.activity);
     refreshLayout.setColorSchemeResources(android.R.color.holo_blue_dark);
     refreshLayout.addView(
@@ -268,6 +285,11 @@ public final class BrowserView implements PlatformView {
                   "type", "context", "view", id, "url", hit.getExtra(), "kind", hit.getType()));
           return true;
         });
+    view.setOnScrollChangeListener(
+        (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+          if (scrollX != oldScrollX || scrollY != oldScrollY)
+            host.emit(JsonCodec.map("type", "scroll", "view", id));
+        });
     channel = new MethodChannel(host.messenger, "croc/webview/" + id);
     channel.setMethodCallHandler(
         (call, result) -> {
@@ -293,8 +315,13 @@ public final class BrowserView implements PlatformView {
                 view.reload();
                 result.success(null);
                 break;
+              case "captureThumbnail":
+                captureThumbnail(result);
+                break;
               case "settings":
+                boolean previousDarkTheme = darkTheme;
                 configure(data);
+                if (previousDarkTheme != darkTheme && view.getUrl() != null) view.reload();
                 result.success(null);
                 break;
               case "find":
@@ -387,6 +414,15 @@ public final class BrowserView implements PlatformView {
 
   private void configure(Map<String, Object> args) {
     loginCapture.configure(args);
+    if (args.containsKey("darkTheme")) {
+      darkTheme = Boolean.TRUE.equals(args.get("darkTheme"));
+      webContext.setTheme(
+          darkTheme
+              ? com.example.crocbrowser.R.style.BrowserWebViewDarkTheme
+              : com.example.crocbrowser.R.style.BrowserWebViewLightTheme);
+      if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING))
+        WebSettingsCompat.setAlgorithmicDarkeningAllowed(view.getSettings(), darkTheme);
+    }
     if (args.containsKey("desktop"))
       view.getSettings()
           .setUserAgentString(
@@ -396,6 +432,109 @@ public final class BrowserView implements PlatformView {
     if (args.containsKey("font"))
       view.getSettings().setTextZoom(JsonCodec.integer(args, "font", 100));
     if (args.containsKey("adBlock")) blockAds = Boolean.TRUE.equals(args.get("adBlock"));
+  }
+
+  private void captureThumbnail(MethodChannel.Result result) {
+    if (disposed || view.getWidth() <= 0 || view.getHeight() <= 0) {
+      result.success(null);
+      return;
+    }
+
+    // Copy the actual composed WebView pixels from the window. WebView.draw()
+    // uses a software canvas and can miss Chromium's GPU-rendered layers,
+    // leaving only fragments of pages such as YouTube in the tab preview.
+    int[] location = new int[2];
+    view.getLocationInWindow(location);
+    Rect source =
+        new Rect(
+            location[0],
+            location[1],
+            location[0] + view.getWidth(),
+            location[1] + view.getHeight());
+    Bitmap bitmap = Bitmap.createBitmap(360, 400, Bitmap.Config.ARGB_8888);
+    try {
+      PixelCopy.request(
+          host.activity.getWindow(),
+          source,
+          bitmap,
+          copyResult -> {
+            try {
+              if (disposed) {
+                result.success(null);
+                return;
+              }
+              if (copyResult != PixelCopy.SUCCESS || isBlack(bitmap)) {
+                Bitmap fallback = captureWebViewFrame();
+                if (fallback == null) {
+                  result.success(null);
+                  return;
+                }
+                try {
+                  result.success(encodeThumbnail(fallback));
+                } finally {
+                  fallback.recycle();
+                }
+                return;
+              }
+              result.success(encodeThumbnail(bitmap));
+            } catch (RuntimeException error) {
+              result.error("BROWSER", "Could not capture this page preview", null);
+            } finally {
+              bitmap.recycle();
+            }
+          },
+          new Handler(Looper.getMainLooper()));
+    } catch (RuntimeException error) {
+      bitmap.recycle();
+      Bitmap fallback = captureWebViewFrame();
+      if (fallback == null) {
+        result.error("BROWSER", "Could not capture this page preview", null);
+        return;
+      }
+      try {
+        result.success(encodeThumbnail(fallback));
+      } finally {
+        fallback.recycle();
+      }
+    }
+  }
+
+  private static byte[] encodeThumbnail(Bitmap bitmap) {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    bitmap.compress(Bitmap.CompressFormat.JPEG, 76, output);
+    return output.toByteArray();
+  }
+
+  private static boolean isBlack(Bitmap bitmap) {
+    int black = 0;
+    int sampled = 0;
+    for (int y = 4; y < bitmap.getHeight(); y += 12) {
+      for (int x = 4; x < bitmap.getWidth(); x += 12) {
+        int pixel = bitmap.getPixel(x, y);
+        if (Color.red(pixel) < 6 && Color.green(pixel) < 6 && Color.blue(pixel) < 6) black++;
+        sampled++;
+      }
+    }
+    return sampled > 0 && black >= sampled * 0.98;
+  }
+
+  private Bitmap captureWebViewFrame() {
+    if (disposed || view.getWidth() <= 0 || view.getHeight() <= 0) return null;
+    Bitmap bitmap = Bitmap.createBitmap(360, 400, Bitmap.Config.ARGB_8888);
+    try {
+      Canvas canvas = new Canvas(bitmap);
+      canvas.drawColor(Color.WHITE);
+      float scale = 360f / view.getWidth();
+      // WebView.draw() already accounts for its current scroll offset. Drawing
+      // a whole-document Picture and translating it here can move the viewport
+      // past its content after a longer scroll, leaving a mostly blank preview.
+      canvas.scale(scale, scale);
+      view.draw(canvas);
+      return bitmap;
+    } catch (RuntimeException error) {
+      bitmap.recycle();
+      return null;
+    }
   }
 
   private void load(String url) {

@@ -7,6 +7,7 @@ mixin _BrowserActions on State<BrowserShell> {
   BrowserStore get store;
   Future<void> _open(String value);
   void _push(Widget screen);
+  Future<void> _showTabs();
 
   void _tool(String name) {
     switch (name) {
@@ -27,7 +28,7 @@ mixin _BrowserActions on State<BrowserShell> {
       case 'settings':
         _push(SettingsScreen(browser: browser));
       case 'tabs':
-        _push(TabsScreen(browser: browser));
+        _showTabs();
       case 'qr':
         _scan();
       case 'closePrivate':
@@ -91,67 +92,84 @@ mixin _BrowserActions on State<BrowserShell> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: false,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 5, bottom: 14),
-              child: Container(
-                width: 32,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD4DDE8),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
+      builder: (context) {
+        final landscape =
+            MediaQuery.orientationOf(context) == Orientation.landscape;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(18, 0, 18, landscape ? 6 : 28),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .88,
             ),
-            GridView.count(
-              crossAxisCount: 5,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: .8,
-              children: items
-                  .map(
-                    (item) => InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () {
-                        Navigator.pop(context);
-                        switch (item.$3) {
-                          case 'addBookmark':
-                            _bookmark();
-                          case 'newTab':
-                            browser.newTab();
-                          case 'share':
-                            _share();
-                          case 'tools':
-                            _tools();
-                          default:
-                            _tool(item.$3);
-                        }
-                      },
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: const Color(0xFFEAF3FF),
-                            child: Icon(item.$2, color: CrockTheme.blue),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            item.$1,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        ],
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: landscape ? 3 : 5,
+                      bottom: landscape ? 8 : 14,
+                    ),
+                    child: Container(
+                      width: 32,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD4DDE8),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
-                  )
-                  .toList(),
+                  ),
+                  GridView.count(
+                    crossAxisCount: 5,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisExtent: landscape ? 80 : null,
+                    childAspectRatio: landscape ? 1.05 : .8,
+                    children: items
+                        .map(
+                          (item) => InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () {
+                              Navigator.pop(context);
+                              switch (item.$3) {
+                                case 'addBookmark':
+                                  _bookmark();
+                                case 'newTab':
+                                  browser.newTab();
+                                case 'share':
+                                  _share();
+                                case 'tools':
+                                  _tools();
+                                default:
+                                  _tool(item.$3);
+                              }
+                            },
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircleAvatar(
+                                  radius: landscape ? 18 : 20,
+                                  backgroundColor: const Color(0xFFEAF3FF),
+                                  child: Icon(item.$2, color: CrockTheme.blue),
+                                ),
+                                SizedBox(height: landscape ? 5 : 10),
+                                Text(
+                                  item.$1,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

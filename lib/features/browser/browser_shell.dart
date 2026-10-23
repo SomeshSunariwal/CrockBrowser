@@ -85,6 +85,17 @@ class _BrowserShellState extends State<BrowserShell>
     }
   }
 
+  @override
+  void didChangePlatformBrightness() {
+    final themeMode = store.setting(
+      'themeMode',
+      store.setting('darkTheme', false) == true ? 'dark' : 'system',
+    );
+    if (themeMode == 'system') {
+      browser.updateSettings();
+    }
+  }
+
   void _event(Map<String, dynamic> event) {
     if (!mounted) return;
     switch (event['type']) {
@@ -137,6 +148,11 @@ class _BrowserShellState extends State<BrowserShell>
     MaterialPageRoute<void>(builder: (context) => screen),
   );
 
+  @override
+  Future<void> _showTabs() async {
+    if (mounted) _push(TabsScreen(browser: browser));
+  }
+
   void _overflowAction(String action) {
     switch (action) {
       case 'back':
@@ -149,6 +165,8 @@ class _BrowserShellState extends State<BrowserShell>
         browser.newTab();
       case 'newPrivateTab':
         _tool('private');
+      case 'downloads':
+        _tool('downloads');
       case 'browserMenu':
         _menu();
       case 'settings':
@@ -189,14 +207,14 @@ class _BrowserShellState extends State<BrowserShell>
                     onHome: browser.home,
                     onSubmit: _open,
                     onMenuSelected: _overflowAction,
-                    onTabs: () => _push(TabsScreen(browser: browser)),
+                    onTabs: _showTabs,
                     tabCount: browser.tabs.length,
                   ),
                 if (!tab.atHome && tab.loading)
                   LinearProgressIndicator(value: tab.progress, minHeight: 2),
                 if (!tab.atHome && tab.failed)
                   Container(
-                    color: const Color(0xFFFFF0E8),
+                    color: Theme.of(context).colorScheme.errorContainer,
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
@@ -236,7 +254,7 @@ class _BrowserShellState extends State<BrowserShell>
                       ),
                       if (tab.failed && !tab.atHome)
                         ColoredBox(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.surface,
                           child: SizedBox.expand(
                             child: CrockEmpty(
                               title: 'This page could not be reached',
@@ -291,7 +309,8 @@ class _BrowserShellState extends State<BrowserShell>
           borderRadius: BorderRadius.circular(36),
           boxShadow: [
             BoxShadow(
-              color: CrockTheme.ink.withValues(alpha: .14),
+              color: Theme.of(context).colorScheme.onSurface
+                  .withValues(alpha: .14),
               blurRadius: 28,
               offset: const Offset(0, 10),
             ),
@@ -308,10 +327,12 @@ class _BrowserShellState extends State<BrowserShell>
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .84),
+                color: Theme.of(context).colorScheme.surface
+                    .withValues(alpha: .9),
                 borderRadius: BorderRadius.circular(36),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: .9),
+                  color: Theme.of(context).colorScheme.outlineVariant
+                      .withValues(alpha: .65),
                   width: 1,
                 ),
               ),
@@ -340,7 +361,7 @@ class _BrowserShellState extends State<BrowserShell>
                   ),
                   IconButton(
                     tooltip: '${browser.tabs.length} open tabs',
-                    onPressed: () => _push(TabsScreen(browser: browser)),
+                    onPressed: _showTabs,
                     icon: Container(
                       width: 24,
                       height: 26,
@@ -348,7 +369,7 @@ class _BrowserShellState extends State<BrowserShell>
                       decoration: BoxDecoration(
                         border: Border.all(
                           width: 1.8,
-                          color: const Color(0xFF283641),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                         borderRadius: BorderRadius.circular(6),
                       ),

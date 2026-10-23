@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/models/browser_tab.dart';
 import '../browser/browser_controller.dart';
 import 'widgets/browser_tab_card.dart';
 import '../../shared/widgets/feature_scaffold.dart';
@@ -13,6 +14,7 @@ class TabsScreen extends StatefulWidget {
 
 class _TabsScreenState extends State<TabsScreen> {
   bool get grid => widget.browser.store.setting('tabGrid', true) == true;
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.browser,
@@ -98,15 +100,67 @@ class _TabsScreenState extends State<TabsScreen> {
       ),
     ),
   );
-  Widget _card(int index) => BrowserTabCard(
-    key: ValueKey(widget.browser.tabs[index].id),
-    tab: widget.browser.tabs[index],
-    selected: index == widget.browser.selected,
-    grid: grid,
-    onSelect: () {
-      widget.browser.select(index);
-      Navigator.pop(context);
+
+  Widget _card(int index) {
+    final tab = widget.browser.tabs[index];
+    return _TabSwipeDismissible(
+      key: ValueKey('dismiss-${tab.id}'),
+      tab: tab,
+      selected: index == widget.browser.selected,
+      grid: grid,
+      onSelect: () {
+        widget.browser.select(index);
+        Navigator.pop(context);
+      },
+      onClose: () => widget.browser.close(index),
+      onDismissed: () => widget.browser.close(index),
+    );
+  }
+}
+
+class _TabSwipeDismissible extends StatefulWidget {
+  const _TabSwipeDismissible({
+    super.key,
+    required this.tab,
+    required this.selected,
+    required this.grid,
+    required this.onSelect,
+    required this.onClose,
+    required this.onDismissed,
+  });
+
+  final BrowserTab tab;
+  final bool selected, grid;
+  final VoidCallback onSelect, onClose, onDismissed;
+
+  @override
+  State<_TabSwipeDismissible> createState() => _TabSwipeDismissibleState();
+}
+
+class _TabSwipeDismissibleState extends State<_TabSwipeDismissible> {
+  double _opacity = 1;
+
+  @override
+  Widget build(BuildContext context) => Dismissible(
+    key: ValueKey(widget.tab.id),
+    direction: DismissDirection.up,
+    movementDuration: const Duration(milliseconds: 220),
+    resizeDuration: const Duration(milliseconds: 220),
+    dismissThresholds: const {DismissDirection.up: .22},
+    onUpdate: (details) {
+      final next = (1 - details.progress).clamp(0.0, 1.0).toDouble();
+      if ((next - _opacity).abs() > .01) setState(() => _opacity = next);
     },
-    onClose: () => widget.browser.close(index),
+    onDismissed: (_) => widget.onDismissed(),
+    child: Opacity(
+      opacity: _opacity,
+      child: BrowserTabCard(
+        tab: widget.tab,
+        selected: widget.selected,
+        grid: widget.grid,
+        onSelect: widget.onSelect,
+        onClose: widget.onClose,
+      ),
+    ),
   );
 }
