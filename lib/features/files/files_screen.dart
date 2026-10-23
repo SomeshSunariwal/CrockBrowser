@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/platform/native_bridge.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import 'archive_actions.dart';
 
 class FilesScreen extends StatefulWidget {
   const FilesScreen({super.key, this.media = false, this.initialPath});
@@ -240,13 +241,13 @@ class _FilesScreenState extends State<FilesScreen> {
                                         value: 'rename',
                                         child: Text('Rename'),
                                       ),
-                                      if (file['name']
-                                          .toString()
-                                          .toLowerCase()
-                                          .endsWith('.zip'))
+                                      if (!directory &&
+                                          isSupportedArchive(
+                                            file['name'].toString(),
+                                          ))
                                         const PopupMenuItem(
                                           value: 'extract',
-                                          child: Text('Extract ZIP'),
+                                          child: Text('Extract archive'),
                                         ),
                                       if (!directory)
                                         const PopupMenuItem(
@@ -323,6 +324,14 @@ class _FilesScreenState extends State<FilesScreen> {
 
   Future<void> _action(Map<String, dynamic> file, String action) async {
     try {
+      if (action == 'extract') {
+        final folder = await extractArchive(context, file);
+        if (folder != null && mounted) {
+          setState(() => path.add(folder));
+          await _refresh();
+        }
+        return;
+      }
       if (action == 'delete' &&
           !await confirmCrock(
             context,
@@ -371,9 +380,6 @@ class _FilesScreenState extends State<FilesScreen> {
           );
         }
       } else {
-        if (action == 'extract' && mounted) {
-          crockMessage(context, 'Extracting ZIP archive…');
-        }
         await NativeBridge.instance.call('files.$action', {
           'path': file['path'],
           'name': name ?? file['name'],

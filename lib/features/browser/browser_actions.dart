@@ -90,27 +90,23 @@ mixin _BrowserActions on State<BrowserShell> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      showDragHandle: false,
       builder: (context) => Padding(
         padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                const CrockLogo(size: 30),
-                const SizedBox(width: 12),
-                const Text(
-                  'Crock Browser',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+            Padding(
+              padding: const EdgeInsets.only(top: 5, bottom: 14),
+              child: Container(
+                width: 32,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD4DDE8),
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 18),
             GridView.count(
               crossAxisCount: 5,
               shrinkWrap: true,

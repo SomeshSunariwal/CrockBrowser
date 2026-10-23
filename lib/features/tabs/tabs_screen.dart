@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../browser/browser_controller.dart';
-import '../../shared/widgets/crock_logo.dart';
+import 'widgets/browser_tab_card.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 
 class TabsScreen extends StatefulWidget {
@@ -56,7 +56,7 @@ class _TabsScreenState extends State<TabsScreen> {
             child: Row(
               children: [
                 Text(
-                  '${widget.browser.tabs.length} tabs',
+                  '${widget.browser.tabs.length} open',
                   style: const TextStyle(color: Color(0xFF8796A6)),
                 ),
                 const Spacer(),
@@ -74,102 +74,39 @@ class _TabsScreenState extends State<TabsScreen> {
           Expanded(
             child: grid
                 ? GridView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: .9,
+                          mainAxisExtent: 244,
                         ),
                     itemCount: widget.browser.tabs.length,
                     itemBuilder: (context, index) => _card(index),
                   )
                 : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: widget.browser.tabs.length,
-                    itemBuilder: (context, index) => _card(index),
+                    itemBuilder: (context, index) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _card(index),
+                    ),
                   ),
           ),
         ],
       ),
     ),
   );
-  Widget _card(int index) {
-    final tab = widget.browser.tabs[index];
-    final active = index == widget.browser.selected;
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: active
-              ? Theme.of(context).colorScheme.primary
-              : Colors.transparent,
-          width: 2,
-        ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () {
-          widget.browser.select(index);
-          Navigator.pop(context);
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: grid
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const CrockLogo(size: 26),
-                        const Spacer(),
-                        IconButton(
-                          tooltip: 'Close tab',
-                          onPressed: () => widget.browser.close(index),
-                          icon: const Icon(Icons.close_rounded, size: 19),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    Text(
-                      tab.atHome ? 'Home' : tab.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      tab.url.isEmpty
-                          ? 'Ready for your next discovery'
-                          : Uri.tryParse(tab.url)?.host ?? tab.url,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF8796A6),
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                )
-              : Row(
-                  children: [
-                    const CrockLogo(size: 32),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(tab.atHome ? 'Home' : tab.title, maxLines: 2),
-                    ),
-                    IconButton(
-                      onPressed: () => widget.browser.close(index),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
+  Widget _card(int index) => BrowserTabCard(
+    key: ValueKey(widget.browser.tabs[index].id),
+    tab: widget.browser.tabs[index],
+    selected: index == widget.browser.selected,
+    grid: grid,
+    onSelect: () {
+      widget.browser.select(index);
+      Navigator.pop(context);
+    },
+    onClose: () => widget.browser.close(index),
+  );
 }

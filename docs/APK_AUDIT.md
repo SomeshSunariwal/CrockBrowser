@@ -96,7 +96,7 @@ Primary sources:
 | Android SDK API 37, Build Tools 36.0.0 | Already installed | Build Crock Browser with the user's existing configuration |
 | Android Platform Tools / ADB | Already installed | Emulator installation and inspection |
 | Android Emulator, API 37 x86_64 image with ARM64 translation | Already installed | Run both Crock and the reference app |
-| Gradle 9.6.0 wrapper / AGP 9.4.1 | Existing project setup | Android build; retained as configured |
+| Gradle 9.8.2 wrapper / AGP 9.4.1 | Existing project setup | Android build; wrapper updated and built-in Kotlin enabled |
 | JADX 1.5.6 | Downloaded locally to `tools/vendor/jadx` | Java decompilation / inspection |
 | Apktool 3.0.3 | Downloaded locally to `tools/vendor/apktool.jar` | Resource/manifest decode and reference rebuild |
 | Python | Available through bundled runtime | Reproducible archive and DEX analysis |

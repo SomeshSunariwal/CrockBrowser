@@ -78,7 +78,7 @@ public final class BackgroundMediaService extends Service {
     try {
       if (player != null) player.release();
       sourceIntent = new Intent(intent);
-      player = MediaSources.create(this, intent);
+      player = MediaSources.create(this, new Intent(intent).putExtra("audioOnly", true));
       player.addListener(
           new androidx.media3.common.Player.Listener() {
             @Override

@@ -95,14 +95,28 @@ String byteLabel(num bytes) {
 }
 
 /// Wait until the route has unmounted before callers dispose local editor controllers.
+void dismissCrockRoute<T>(BuildContext context, [T? result]) {
+  final route = ModalRoute.of<T>(context);
+  if (route == null) return;
+  final navigator = Navigator.of(context);
+  if (route.isCurrent) {
+    navigator.pop(result);
+  } else {
+    // A notification may have opened another screen while an operation was awaiting.
+    navigator.removeRoute(route, result);
+  }
+}
+
 Future<T?> showCrockDialog<T>({
   required BuildContext context,
   required WidgetBuilder builder,
+  bool barrierDismissible = true,
 }) async {
   final navigator = Navigator.of(context, rootNavigator: true);
   final route = DialogRoute<T>(
     context: context,
     builder: builder,
+    barrierDismissible: barrierDismissible,
     themes: InheritedTheme.capture(from: context, to: navigator.context),
   );
   final result = await navigator.push(route);
@@ -115,6 +129,7 @@ Future<T?> showCrockSheet<T>({
   required WidgetBuilder builder,
   bool isScrollControlled = false,
   bool useSafeArea = false,
+  bool showDragHandle = true,
 }) async {
   final navigator = Navigator.of(context);
   final theme = Theme.of(context);
@@ -126,7 +141,8 @@ Future<T?> showCrockSheet<T>({
       from: context,
       to: navigator.context,
     ),
-    showDragHandle: theme.bottomSheetTheme.showDragHandle,
+    showDragHandle:
+        showDragHandle && (theme.bottomSheetTheme.showDragHandle ?? false),
     modalBarrierColor: theme.bottomSheetTheme.modalBarrierColor,
   );
   final result = await navigator.push(route);

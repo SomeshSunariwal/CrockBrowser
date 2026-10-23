@@ -14,8 +14,6 @@ import io.flutter.plugin.common.MethodChannel;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 /** Scoped files and SAF operations. Arbitrary filesystem paths are never accepted. */
 public final class FilesBridge {
@@ -58,7 +56,9 @@ public final class FilesBridge {
         File[] files = directory.listFiles();
         if (files != null)
           for (File item : files)
-            if (!item.getName().endsWith(".part") && !item.getName().endsWith(".torrent-meta"))
+            if (!item.getName().startsWith(".extracting-")
+                && !item.getName().endsWith(".part")
+                && !item.getName().endsWith(".torrent-meta"))
               rows.add(
                   JsonCodec.map(
                       "name",
@@ -107,7 +107,10 @@ public final class FilesBridge {
         activity.startActivity(Intent.createChooser(intent, "Open from Crock Browser"));
         return null;
       case "files.extract":
-        return extract(allowed(JsonCodec.string(args, "path", "")));
+        return ArchiveExtractor.extract(
+            root,
+            allowed(JsonCodec.string(args, "path", "")),
+            JsonCodec.string(args, "password", ""));
       case "files.media":
         return media(JsonCodec.string(args, "kind", "video"));
       case "files.exportText":
@@ -267,39 +270,6 @@ public final class FilesBridge {
         android.webkit.MimeTypeMap.getSingleton()
             .getMimeTypeFromExtension(ext.toLowerCase(Locale.ROOT));
     return value == null ? "application/octet-stream" : value;
-  }
-
-  private String extract(File archive) throws Exception {
-    File directory = new File(root, "Extracted_" + System.currentTimeMillis());
-    directory.mkdirs();
-    long total = 0;
-    int count = 0;
-    try (ZipInputStream zip = new ZipInputStream(new FileInputStream(archive))) {
-      ZipEntry entry;
-      byte[] buffer = new byte[64 * 1024];
-      while ((entry = zip.getNextEntry()) != null) {
-        if (++count > 10000) throw new IOException("Archive contains too many entries");
-        File target = new File(directory, entry.getName()).getCanonicalFile();
-        if (!target.getPath().startsWith(directory.getCanonicalPath() + File.separator))
-          throw new SecurityException("Unsafe archive path");
-        if (entry.isDirectory()) target.mkdirs();
-        else {
-          target.getParentFile().mkdirs();
-          try (OutputStream output = new FileOutputStream(target)) {
-            int read;
-            while ((read = zip.read(buffer)) != -1) {
-              total += read;
-              if (total > 4L * 1024 * 1024 * 1024)
-                throw new IOException("Archive exceeds the 4 GB extraction limit");
-              output.write(buffer, 0, read);
-            }
-          }
-        }
-        zip.closeEntry();
-      }
-    }
-    if (count == 0) throw new IOException("This file is not a supported ZIP archive");
-    return directory.getPath();
   }
 
   private List<Map<String, Object>> media(String kind) {

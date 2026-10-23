@@ -80,6 +80,21 @@ public final class VaultBridge {
   }
 
   public Object handle(String method, Map<String, Object> args) throws Exception {
+    if (method.equals("passwords.status")) {
+      // Only trusted Flutter calls can query this; it returns no stored credentials.
+      JSONArray saved = new JSONArray(store.read("passwords", "[]"));
+      boolean exists = false, matches = false;
+      for (int i = 0; i < saved.length(); i++) {
+        JSONObject item = saved.getJSONObject(i);
+        if (item.optString("origin").equals(JsonCodec.string(args, "origin", ""))
+            && item.optString("username").equals(JsonCodec.string(args, "username", ""))) {
+          exists = true;
+          if (item.optString("password").equals(JsonCodec.string(args, "password", "")))
+            matches = true;
+        }
+      }
+      return JsonCodec.map("exists", exists, "matches", matches);
+    }
     if (method.equals("vault.lock")) {
       lock();
       return null;

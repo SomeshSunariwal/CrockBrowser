@@ -50,7 +50,7 @@ public final class DownloadService extends Service {
     try {
       tasks.addAll(repository.load());
       for (DownloadTask task : tasks) {
-        task.speed=0;
+        task.speed = 0;
         if (task.state.equals("running") || task.state.equals("retrying")) task.state = "queued";
       }
     } catch (Exception error) {

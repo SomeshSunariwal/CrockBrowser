@@ -137,7 +137,7 @@ class _DownloadSheetState extends State<_DownloadSheet> {
                               : filename.text.trim(),
                           'tree': widget.store.setting('downloadFolder', ''),
                         });
-                        if (context.mounted) Navigator.pop(context);
+                        if (context.mounted) dismissCrockRoute<void>(context);
                       } catch (error) {
                         if (context.mounted) {
                           setState(() => busy = false);

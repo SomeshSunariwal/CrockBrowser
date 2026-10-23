@@ -30,6 +30,11 @@ class NativeBrowserSurface extends StatelessWidget {
         'desktop': tab.desktop,
         'font': browser.store.setting('font', 100),
         'adBlock': browser.store.setting('adBlock', false),
+        'offerSavePasswords': browser.store.setting('offerSavePasswords', true),
+        'passwordPromptBlockedOrigins': browser.store.setting(
+          'passwordPromptBlockedOrigins',
+          const <String>[],
+        ),
       },
       onPlatformViewCreated: (view) => browser.attach(view, tab),
     );

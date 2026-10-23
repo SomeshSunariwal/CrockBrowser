@@ -7,6 +7,7 @@ import '../../shared/widgets/feature_scaffold.dart';
 import 'download_controller.dart';
 import 'download_sheet.dart';
 import '../files/files_screen.dart';
+import '../files/archive_actions.dart';
 
 class DownloadsScreen extends StatefulWidget {
   const DownloadsScreen({
@@ -225,6 +226,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 PopupMenuButton<String>(
                   onSelected: (action) => _action(task, action),
                   itemBuilder: (context) => [
+                    if (complete &&
+                        task['stream'] != true &&
+                        task['torrent'] != true &&
+                        isSupportedArchive(task['name'].toString()))
+                      const PopupMenuItem(
+                        value: 'extract',
+                        child: Text('Extract archive'),
+                      ),
                     if (complete)
                       const PopupMenuItem(
                         value: 'open',
@@ -343,10 +352,23 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           )) {
         return;
       }
-      if (['open', 'share', 'export'].contains(action)) {
+      if (['open', 'share', 'export', 'extract'].contains(action)) {
         final file = await widget.downloads.file(task['id'] as String);
         if (file['exists'] != true) {
           throw StateError('The local file has been moved or removed');
+        }
+        if (action == 'extract') {
+          if (!mounted) return;
+          final folder = await extractArchive(context, file);
+          if (folder != null && mounted) {
+            await Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => FilesScreen(initialPath: folder),
+              ),
+            );
+          }
+          return;
         }
         if (file['stream'] == true) {
           if (action != 'open') {

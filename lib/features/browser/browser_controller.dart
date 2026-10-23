@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../core/models/browser_tab.dart';
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
+import '../../core/services/site_icons.dart';
 
 class BrowserController extends ChangeNotifier {
   BrowserController(this.store) {
@@ -48,6 +49,19 @@ class BrowserController extends ChangeNotifier {
     final matches = tabs.where((tab) => tab.id == id);
     final tab = matches.isEmpty ? null : matches.first;
     switch (event['type']) {
+      case 'loginSuggestion':
+        if (!privateMode && tab == current && !current.atHome) {
+          events.add(event);
+        }
+      case 'favicon':
+        if (!privateMode &&
+            event['url'] is String &&
+            event['bytes'] is Uint8List) {
+          SiteIcons.remember(
+            event['url'] as String,
+            event['bytes'] as Uint8List,
+          );
+        }
       case 'browser':
         if (tab == null) return;
         tab.url = event['url'] as String? ?? tab.url;
@@ -206,6 +220,11 @@ class BrowserController extends ChangeNotifier {
       await channel.invokeMethod('settings', {
         'font': store.setting('font', 100),
         'adBlock': store.setting('adBlock', false),
+        'offerSavePasswords': store.setting('offerSavePasswords', true),
+        'passwordPromptBlockedOrigins': store.setting(
+          'passwordPromptBlockedOrigins',
+          const <String>[],
+        ),
       });
     }
   }

@@ -38,7 +38,12 @@ android {
 }
 
 dependencies {
+    implementation("org.apache.commons:commons-compress:1.28.0")
+    implementation("org.tukaani:xz:1.10")
+    implementation("com.github.junrar:junrar:8.1.2")
     implementation("androidx.core:core:1.15.0")
+    implementation("androidx.webkit:webkit:1.16.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.google.mlkit:translate:17.0.3")
     implementation("androidx.media3:media3-exoplayer:1.11.1")

@@ -23,6 +23,30 @@ public final class MediaPlayerActivity extends Activity {
     return Math.round(value * getResources().getDisplayMetrics().density);
   }
 
+  private void styleButton(Button button) {
+    button.setAllCaps(false);
+    button.setTextColor(Color.WHITE);
+    button.setTextSize(13);
+    button.setMinWidth(0);
+    button.setMinimumWidth(0);
+    button.setMinHeight(dp(44));
+    button.setMinimumHeight(dp(44));
+    button.setPadding(dp(8), dp(8), dp(8), dp(8));
+    android.graphics.drawable.GradientDrawable shape =
+        new android.graphics.drawable.GradientDrawable();
+    shape.setColor(Color.rgb(25, 38, 54));
+    shape.setCornerRadius(dp(14));
+    button.setBackground(
+        new android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(Color.rgb(44, 68, 97)), shape, null));
+  }
+
+  private LinearLayout.LayoutParams actionLayout() {
+    LinearLayout.LayoutParams layout = new LinearLayout.LayoutParams(0, dp(48), 1);
+    layout.setMargins(dp(4), 0, dp(4), 0);
+    return layout;
+  }
+
   @Override
   public void onCreate(Bundle state) {
     super.onCreate(state);
@@ -47,6 +71,7 @@ public final class MediaPlayerActivity extends Activity {
     title.setTextSize(18);
     controls.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
     Button close = new Button(this);
+    styleButton(close);
     close.setText("Close");
     close.setOnClickListener(v -> finish());
     controls.addView(close);
@@ -54,7 +79,9 @@ public final class MediaPlayerActivity extends Activity {
     surface = new PlayerView(this);
     root.addView(surface, new LinearLayout.LayoutParams(-1, 0, 1));
     actions = new LinearLayout(this);
+    actions.setPadding(dp(8), dp(8), dp(8), dp(12));
     Button rate = new Button(this);
+    styleButton(rate);
     rate.setText("Speed 1×");
     rate.setOnClickListener(
         v -> {
@@ -72,8 +99,9 @@ public final class MediaPlayerActivity extends Activity {
                   })
               .show();
         });
-    actions.addView(rate, new LinearLayout.LayoutParams(0, -2, 1));
+    actions.addView(rate, actionLayout());
     Button pip = new Button(this);
+    styleButton(pip);
     pip.setText("Mini player");
     pip.setOnClickListener(
         v -> {
@@ -84,8 +112,9 @@ public final class MediaPlayerActivity extends Activity {
             Toast.makeText(this, "Picture in picture is unavailable", Toast.LENGTH_SHORT).show();
           }
         });
-    actions.addView(pip, new LinearLayout.LayoutParams(0, -2, 1));
+    actions.addView(pip, actionLayout());
     Button background = new Button(this);
+    styleButton(background);
     background.setText("Background");
     background.setOnClickListener(
         v -> {
@@ -101,7 +130,7 @@ public final class MediaPlayerActivity extends Activity {
           startForegroundService(intent);
           finish();
         });
-    actions.addView(background, new LinearLayout.LayoutParams(0, -2, 1));
+    actions.addView(background, actionLayout());
     root.addView(actions);
     setContentView(root);
     stopService(new Intent(this, BackgroundMediaService.class));
@@ -113,11 +142,26 @@ public final class MediaPlayerActivity extends Activity {
           new Player.Listener() {
             @Override
             public void onPlayerError(PlaybackException error) {
-              new AlertDialog.Builder(MediaPlayerActivity.this)
-                  .setTitle("Cannot play this media")
-                  .setMessage(error.getMessage())
-                  .setPositiveButton("Close", (d, w) -> finish())
-                  .show();
+              boolean decoderError = error.errorCode >= 4000 && error.errorCode < 5000;
+              AlertDialog.Builder dialog =
+                  new AlertDialog.Builder(MediaPlayerActivity.this)
+                      .setTitle("Cannot play this media")
+                      .setMessage(
+                          decoderError
+                              ? "Your device's decoder could not play this clip. Try software"
+                                  + " playback."
+                              : "This media could not be read. It may be incomplete or use an"
+                                  + " unsupported format.")
+                      .setPositiveButton("Close", (d, w) -> finish());
+              if (decoderError && !getIntent().getBooleanExtra("softwareDecoder", false)) {
+                dialog.setNeutralButton(
+                    "Software playback",
+                    (d, w) -> {
+                      getIntent().putExtra("softwareDecoder", true);
+                      recreate();
+                    });
+              }
+              dialog.show();
             }
           });
     } catch (Exception error) {

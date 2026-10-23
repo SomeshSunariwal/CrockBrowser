@@ -5,7 +5,10 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Message;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.*;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import com.example.crocbrowser.browser.credentials.LoginCapture;
 import com.example.crocbrowser.core.HostChannel;
 import com.example.crocbrowser.core.JsonCodec;
 import io.flutter.plugin.common.MethodChannel;
@@ -18,6 +21,8 @@ public final class BrowserView implements PlatformView {
   private final HostChannel host;
   private final int id;
   private final WebView view;
+  private final SwipeRefreshLayout refreshLayout;
+  private final LoginCapture loginCapture;
   private final MethodChannel channel;
   private final Set<String> media = java.util.concurrent.ConcurrentHashMap.newKeySet();
   private boolean failed = false, blockAds = false, disposed = false;
@@ -43,6 +48,14 @@ public final class BrowserView implements PlatformView {
     this.host = host;
     this.id = id;
     view = new WebView(host.activity);
+    refreshLayout = new SwipeRefreshLayout(host.activity);
+    refreshLayout.setColorSchemeResources(android.R.color.holo_blue_dark);
+    refreshLayout.addView(
+        view,
+        new ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    refreshLayout.setOnRefreshListener(view::reload);
+    loginCapture = new LoginCapture(host, view, id);
     WebSettings s = view.getSettings();
     normalAgent = s.getUserAgentString();
     s.setJavaScriptEnabled(true);
@@ -100,6 +113,7 @@ public final class BrowserView implements PlatformView {
 
           @Override
           public void onPageStarted(WebView v, String url, Bitmap icon) {
+            loginCapture.started(url);
             failed = false;
             media.clear();
             state(0);
@@ -107,16 +121,26 @@ public final class BrowserView implements PlatformView {
 
           @Override
           public void onPageFinished(WebView v, String url) {
+            refreshLayout.setRefreshing(false);
             state(100);
             host.applyHiddenElements(view);
+            loginCapture.finished();
           }
 
           @Override
           public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError error) {
             if (r.isForMainFrame()) {
+              refreshLayout.setRefreshing(false);
+              loginCapture.clear();
               failed = true;
               state(100);
             }
+          }
+
+          @Override
+          public void onReceivedHttpError(
+              WebView v, WebResourceRequest request, WebResourceResponse response) {
+            if (request.isForMainFrame() && response.getStatusCode() >= 400) loginCapture.clear();
           }
 
           @Override
@@ -130,7 +154,8 @@ public final class BrowserView implements PlatformView {
             String url = request.getUrl().toString();
             String path = request.getUrl().getPath();
             if (path != null
-                && path.toLowerCase(Locale.ROOT).matches(".*\\.(mp4|webm|mp3|m4a|ogg|m3u8)(/.*)?$")
+                && path.toLowerCase(Locale.ROOT)
+                    .matches(".*\\.(mp4|webm|mp3|m4a|aac|ogg|wav|m3u8|mpd)(/.*)?$")
                 && media.add(url))
               host.emit(
                   JsonCodec.map(
@@ -147,6 +172,35 @@ public final class BrowserView implements PlatformView {
         });
     view.setWebChromeClient(
         new WebChromeClient() {
+          @Override
+          public void onReceivedIcon(WebView v, Bitmap icon) {
+            if (icon == null
+                || v.getUrl() == null
+                || host.activity instanceof com.example.crocbrowser.PrivateBrowserActivity) return;
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            int largest = Math.max(icon.getWidth(), icon.getHeight());
+            Bitmap small =
+                largest > 128
+                    ? Bitmap.createScaledBitmap(
+                        icon,
+                        Math.max(1, icon.getWidth() * 128 / largest),
+                        Math.max(1, icon.getHeight() * 128 / largest),
+                        true)
+                    : icon;
+            small.compress(Bitmap.CompressFormat.PNG, 100, bytes);
+            if (bytes.size() <= 512 * 1024)
+              host.emit(
+                  JsonCodec.map(
+                      "type",
+                      "favicon",
+                      "view",
+                      id,
+                      "url",
+                      v.getUrl(),
+                      "bytes",
+                      bytes.toByteArray()));
+          }
+
           @Override
           public void onProgressChanged(WebView v, int progress) {
             state(progress);
@@ -255,7 +309,7 @@ public final class BrowserView implements PlatformView {
                 evaluate(BrowserScripts.READER, result);
                 break;
               case "media":
-                evaluate(BrowserScripts.MEDIA, result);
+                evaluate(PageMediaExtractor.SCRIPT, result);
                 break;
               case "requestContext":
                 String target = JsonCodec.string(data, "url", "");
@@ -332,6 +386,7 @@ public final class BrowserView implements PlatformView {
   }
 
   private void configure(Map<String, Object> args) {
+    loginCapture.configure(args);
     if (args.containsKey("desktop"))
       view.getSettings()
           .setUserAgentString(
@@ -390,12 +445,13 @@ public final class BrowserView implements PlatformView {
 
   @Override
   public View getView() {
-    return view;
+    return refreshLayout;
   }
 
   @Override
   public void dispose() {
     disposed = true;
+    loginCapture.dispose();
     channel.setMethodCallHandler(null);
     view.stopLoading();
     view.destroy();

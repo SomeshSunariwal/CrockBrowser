@@ -1,3 +1,11 @@
+buildscript {
+    repositories { mavenCentral() }
+    dependencies {
+        // Upgrade AGP's built-in compiler to Flutter's supported version without applying KGP.
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.0")
+    }
+}
+
 allprojects {
     repositories {
         google()

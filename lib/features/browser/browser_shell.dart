@@ -1,11 +1,11 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
 import '../../core/theme/crock_theme.dart';
-import '../../shared/widgets/crock_logo.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import '../downloads/download_controller.dart';
 import '../downloads/download_sheet.dart';
@@ -15,6 +15,7 @@ import '../home/home_screen.dart';
 import '../home/shortcuts_screen.dart';
 import '../library/library_screen.dart';
 import '../privacy/vault_screen.dart';
+import '../privacy/login_save_prompt.dart';
 import '../reading/reader_screen.dart';
 import '../reading/autofill_profile_screen.dart';
 import '../reading/clipboard_screen.dart';
@@ -22,6 +23,7 @@ import '../settings/settings_screen.dart';
 import '../tabs/tabs_screen.dart';
 import 'browser_controller.dart';
 import 'native_browser_surface.dart';
+import 'widgets/browser_address_bar.dart';
 
 part 'browser_actions.dart';
 
@@ -43,6 +45,7 @@ class _BrowserShellState extends State<BrowserShell>
   late final browser = BrowserController(widget.store);
   @override
   late final downloads = DownloadController();
+  late final loginPrompts = LoginSavePrompt(store);
   late final StreamSubscription<Map<String, dynamic>> events;
   final address = TextEditingController(), addressFocus = FocusNode();
   @override
@@ -85,6 +88,19 @@ class _BrowserShellState extends State<BrowserShell>
   void _event(Map<String, dynamic> event) {
     if (!mounted) return;
     switch (event['type']) {
+      case 'loginSuggestion':
+        loginPrompts.offer(
+          context,
+          event,
+          isCurrent: () =>
+              mounted &&
+              WidgetsBinding.instance.lifecycleState ==
+                  AppLifecycleState.resumed &&
+              !browser.current.atHome &&
+              Uri.tryParse(browser.current.url)?.origin == event['origin'] &&
+              ModalRoute.of(context)?.isCurrent == true,
+          updateSettings: browser.updateSettings,
+        );
       case 'download':
         showDownloadSheet(context, downloads, store, event);
       case 'navigate':
@@ -120,6 +136,28 @@ class _BrowserShellState extends State<BrowserShell>
     context,
     MaterialPageRoute<void>(builder: (context) => screen),
   );
+
+  void _overflowAction(String action) {
+    switch (action) {
+      case 'back':
+        browser.back();
+      case 'refresh':
+        browser.page('reload');
+      case 'find':
+        _find();
+      case 'newTab':
+        browser.newTab();
+      case 'newPrivateTab':
+        _tool('private');
+      case 'browserMenu':
+        _menu();
+      case 'settings':
+        _tool('settings');
+      case 'closeTab':
+        browser.close(browser.selected);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([browser, store]),
@@ -144,50 +182,15 @@ class _BrowserShellState extends State<BrowserShell>
             child: Column(
               children: [
                 if (!tab.atHome)
-                  Container(
-                    color: Colors.white,
-                    padding: const EdgeInsets.fromLTRB(6, 2, 6, 5),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          tooltip: 'Home',
-                          onPressed: browser.home,
-                          icon: const Icon(Icons.home_outlined),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: address,
-                            focusNode: addressFocus,
-                            textInputAction: TextInputAction.go,
-                            keyboardType: TextInputType.url,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 14,
-                              ),
-                              hintText: 'Search or enter URL',
-                              prefixIcon: Icon(
-                                tab.url.startsWith('https://')
-                                    ? Icons.lock_outline
-                                    : Icons.public_rounded,
-                                size: 16,
-                              ),
-                            ),
-                            onTap: () => address.selection = TextSelection(
-                              baseOffset: 0,
-                              extentOffset: address.text.length,
-                            ),
-                            onSubmitted: _open,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Refresh',
-                          onPressed: () => browser.page('reload'),
-                          icon: const Icon(Icons.refresh_rounded, size: 22),
-                        ),
-                      ],
-                    ),
+                  BrowserAddressBar(
+                    controller: address,
+                    focusNode: addressFocus,
+                    url: tab.url,
+                    onHome: browser.home,
+                    onSubmit: _open,
+                    onMenuSelected: _overflowAction,
+                    onTabs: () => _push(TabsScreen(browser: browser)),
+                    tabCount: browser.tabs.length,
                   ),
                 if (!tab.atHome && tab.loading)
                   LinearProgressIndicator(value: tab.progress, minHeight: 2),
@@ -214,18 +217,22 @@ class _BrowserShellState extends State<BrowserShell>
                   ),
                 Expanded(
                   child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      IndexedStack(
-                        index: browser.selected,
-                        children: browser.tabs
-                            .map(
-                              (item) => NativeBrowserSurface(
-                                key: ValueKey(item.id),
-                                browser: browser,
-                                tab: item,
-                              ),
-                            )
-                            .toList(),
+                      ExcludeSemantics(
+                        excluding: tab.atHome || tab.failed,
+                        child: IndexedStack(
+                          index: browser.selected,
+                          children: browser.tabs
+                              .map(
+                                (item) => NativeBrowserSurface(
+                                  key: ValueKey(item.id),
+                                  browser: browser,
+                                  tab: item,
+                                ),
+                              )
+                              .toList(),
+                        ),
                       ),
                       if (tab.failed && !tab.atHome)
                         ColoredBox(
@@ -250,10 +257,17 @@ class _BrowserShellState extends State<BrowserShell>
                             site.isEmpty ? null : site,
                           ),
                         ),
+                      if (tab.atHome &&
+                          MediaQuery.viewInsetsOf(context).bottom == 0)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: _navigation(),
+                        ),
                     ],
                   ),
                 ),
-                if (MediaQuery.viewInsetsOf(context).bottom == 0) _navigation(),
               ],
             ),
           ),
@@ -261,59 +275,106 @@ class _BrowserShellState extends State<BrowserShell>
       );
     },
   );
-  Widget _navigation() => Container(
-    height: 58,
-    decoration: const BoxDecoration(
-      color: CrockTheme.background,
-      border: Border(top: BorderSide(color: Color(0xFFE9EEF5), width: .5)),
+  Widget _navigation() => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: const Duration(milliseconds: 520),
+    curve: Curves.easeOutBack,
+    builder: (context, progress, child) => Transform.translate(
+      offset: Offset(0, 24 * (1 - progress)),
+      child: Transform.scale(scale: .96 + .04 * progress, child: child),
     ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        IconButton(
-          tooltip: 'Back',
-          onPressed: browser.current.atHome ? null : browser.back,
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        IconButton(
-          tooltip: 'Forward',
-          onPressed:
-              browser.current.canForward ||
-                  (browser.current.atHome && browser.current.url.isNotEmpty)
-              ? browser.forward
-              : null,
-          icon: const Icon(Icons.arrow_forward_rounded),
-        ),
-        IconButton(
-          tooltip: 'Menu',
-          onPressed: _menu,
-          icon: const Icon(Icons.menu_rounded, size: 29),
-        ),
-        IconButton(
-          tooltip: '${browser.tabs.length} open tabs',
-          onPressed: () => _push(TabsScreen(browser: browser)),
-          icon: Container(
-            width: 24,
-            height: 26,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              border: Border.all(width: 1.8, color: const Color(0xFF283641)),
-              borderRadius: BorderRadius.circular(6),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(36),
+          boxShadow: [
+            BoxShadow(
+              color: CrockTheme.ink.withValues(alpha: .14),
+              blurRadius: 28,
+              offset: const Offset(0, 10),
             ),
-            child: Text(
-              '${browser.tabs.length}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            BoxShadow(
+              color: CrockTheme.blue.withValues(alpha: .06),
+              blurRadius: 18,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(36),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .84),
+                borderRadius: BorderRadius.circular(36),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: .9),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  IconButton(
+                    tooltip: 'Back',
+                    onPressed: browser.current.atHome ? null : browser.back,
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Forward',
+                    onPressed:
+                        browser.current.canForward ||
+                            (browser.current.atHome &&
+                                browser.current.url.isNotEmpty)
+                        ? browser.forward
+                        : null,
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Menu',
+                    onPressed: _menu,
+                    icon: const Icon(Icons.menu_rounded, size: 28),
+                  ),
+                  IconButton(
+                    tooltip: '${browser.tabs.length} open tabs',
+                    onPressed: () => _push(TabsScreen(browser: browser)),
+                    icon: Container(
+                      width: 24,
+                      height: 26,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          width: 1.8,
+                          color: const Color(0xFF283641),
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${browser.tabs.length}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Home',
+                    onPressed: browser.home,
+                    icon: const Icon(Icons.home_outlined, size: 27),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        IconButton(
-          tooltip: 'Home',
-          onPressed: browser.home,
-          icon: const Icon(Icons.home_outlined, size: 28),
-        ),
-      ],
+      ),
     ),
   );
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);

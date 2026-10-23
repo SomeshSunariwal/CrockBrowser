@@ -66,3 +66,7 @@ Local metadata and Private Space use Android Keystore encryption. Private browsi
 No UC advertising, analytics, accounts, cloud backup, VPN, AI or content-feed services were copied. Android WebView and optional ML Kit translation have their own platform/provider behavior; this is not a claim of anonymity or zero network telemetry.
 
 Reference documents: [UC feature inventory](docs/UC_FEATURE_SELECTION.md), [APK/trackers/ownership audit](docs/APK_AUDIT.md), and [original Java UI reference](docs/UI_REFERENCE.html).
+
+Home layout: two rows of four bookmark-shortcut slots, including Add site; Manage opens all shortcuts. Recently visited shows real local history grouped by host and is omitted in private mode. Archive extraction supports ZIP, RAR/RAR5 and 7z, including RAR/7z password entry.
+
+Build tools: Gradle 9.8.2, AGP 9.4.1, built-in Kotlin enabled. Flutter 3.47.7 still emits two upstream legacy-DSL/applicationVariants warnings. These are not build failures; the current SDK requires its compatibility DSL setting.

@@ -49,7 +49,9 @@ public final class StreamDownloads {
     DownloadRequest request =
         new DownloadRequest.Builder(task.id, Uri.parse(task.url))
             .setMimeType(
-                task.url.contains(".mpd") ? "application/dash+xml" : "application/x-mpegURL")
+                task.mime.contains("dash+xml") || task.url.toLowerCase(Locale.ROOT).contains(".mpd")
+                    ? "application/dash+xml"
+                    : "application/x-mpegURL")
             .build();
     Downloader downloader =
         new DefaultDownloaderFactory(source(context, task, false), Runnable::run)

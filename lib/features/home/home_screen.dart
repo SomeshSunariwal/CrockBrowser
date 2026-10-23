@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/storage/browser_store.dart';
 import '../../core/theme/crock_theme.dart';
 import '../../shared/widgets/crock_logo.dart';
+import 'widgets/home_bookmarks.dart';
+import 'widgets/recent_sites.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -52,7 +54,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
               child: Column(
                 children: [
                   Row(
@@ -85,6 +87,7 @@ class HomeScreen extends StatelessWidget {
                   Text(
                     privateMode ? 'Browse privately' : 'Crock Browser',
                     style: const TextStyle(
+                      color: CrockTheme.ink,
                       fontSize: 34,
                       fontWeight: FontWeight.w300,
                       letterSpacing: -1.2,
@@ -134,7 +137,7 @@ class HomeScreen extends StatelessWidget {
                     children: tools
                         .map(
                           (tool) => Expanded(
-                            child: _Shortcut(
+                            child: _HomeTool(
                               title: tool.$1,
                               color: tool.$4,
                               icon: tool.$2,
@@ -145,37 +148,22 @@ class HomeScreen extends StatelessWidget {
                         .toList(),
                   ),
                   const SizedBox(height: 25),
-                  GridView.count(
-                    crossAxisCount: 5,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    childAspectRatio: .66,
-                    children: [
-                      ...store
-                          .rows('shortcuts')
-                          .map(
-                            (site) => _Shortcut(
-                              title: site['title'] as String,
-                              initial: (site['title'] as String)
-                                  .characters
-                                  .first
-                                  .toUpperCase(),
-                              color: CrockTheme.blue,
-                              subtle: true,
-                              onTap: () => onShortcut(site),
-                              onLongPress: () => onEditShortcut(site),
-                            ),
-                          ),
-                      _Shortcut(
-                        title: 'Add site',
-                        icon: Icons.add_rounded,
-                        color: const Color(0xFF8796A6),
-                        subtle: true,
-                        onTap: () => onEditShortcut({}),
-                      ),
-                    ],
+                  HomeBookmarks(
+                    sites: store.rows('shortcuts'),
+                    onOpen: onShortcut,
+                    onEdit: onEditShortcut,
+                    onManage: () => onTool('shortcuts'),
+                    allowIconNetwork: !privateMode,
                   ),
-                  SizedBox(height: box.maxHeight > 650 ? 100 : 36),
+                  if (!privateMode) ...[
+                    const SizedBox(height: 12),
+                    RecentSites(
+                      history: store.rows('history'),
+                      onOpen: onSearch,
+                      onViewAll: () => onTool('history'),
+                    ),
+                  ],
+                  const SizedBox(height: 32),
                   Text(
                     privateMode
                         ? 'Private history and tabs stay out of your saved session.'
@@ -202,45 +190,29 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _Shortcut extends StatelessWidget {
-  const _Shortcut({
+class _HomeTool extends StatelessWidget {
+  const _HomeTool({
     required this.title,
     required this.color,
     required this.onTap,
-    this.icon,
-    this.initial,
-    this.subtle = false,
-    this.onLongPress,
+    required this.icon,
   });
   final String title;
   final Color color;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
-  final IconData? icon;
-  final String? initial;
-  final bool subtle;
+  final IconData icon;
   @override
   Widget build(BuildContext context) => InkWell(
     borderRadius: BorderRadius.circular(18),
     onTap: onTap,
-    onLongPress: onLongPress,
     child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
       child: Column(
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: subtle ? Colors.white : color,
-            child: icon != null
-                ? Icon(icon, color: subtle ? color : Colors.white, size: 25)
-                : Text(
-                    initial ?? '',
-                    style: TextStyle(
-                      fontSize: 25,
-                      color: color,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+            backgroundColor: color,
+            child: Icon(icon, color: Colors.white, size: 25),
           ),
           const SizedBox(height: 9),
           Text(
@@ -248,7 +220,11 @@ class _Shortcut extends StatelessWidget {
             maxLines: 2,
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, height: 1.25),
+            style: const TextStyle(
+              color: CrockTheme.ink,
+              fontSize: 11,
+              height: 1.25,
+            ),
           ),
         ],
       ),
