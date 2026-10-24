@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/storage/browser_store.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/editor_dialog.dart';
 
 Future<void> editShortcut(
   BuildContext context,
@@ -12,20 +13,22 @@ Future<void> editShortcut(
       url = TextEditingController(text: old?['url'] as String? ?? '');
   await showCrockDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(old == null ? 'Add shortcut' : 'Edit shortcut'),
+    builder: (context) => CrockEditorDialog(
+      title: old == null ? 'Add shortcut' : 'Edit shortcut',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
+          CrockEditorField(
+            label: 'Site name',
             controller: title,
-            decoration: const InputDecoration(labelText: 'Site name'),
+            textInputAction: TextInputAction.next,
           ),
-          const SizedBox(height: 12),
-          TextField(
+          const SizedBox(height: 16),
+          CrockEditorField(
+            label: 'Website URL',
             controller: url,
             keyboardType: TextInputType.url,
-            decoration: const InputDecoration(labelText: 'Website URL'),
+            textInputAction: TextInputAction.done,
           ),
         ],
       ),

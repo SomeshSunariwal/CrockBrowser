@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/storage/browser_store.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/editor_dialog.dart';
 
 class SearchEnginesScreen extends StatelessWidget {
   const SearchEnginesScreen({super.key, required this.store});
@@ -85,22 +86,26 @@ class SearchEnginesScreen extends StatelessWidget {
         );
     await showCrockDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(old == null ? 'Add search engine' : 'Edit search engine'),
+      builder: (context) => CrockEditorDialog(
+        title: old == null ? 'Add search engine' : 'Edit search engine',
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
+            CrockEditorField(
+              label: 'Engine name',
               controller: name,
-              decoration: const InputDecoration(labelText: 'Engine name'),
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              hintText: 'e.g. Google',
             ),
-            const SizedBox(height: 12),
-            TextField(
+            const SizedBox(height: 16),
+            CrockEditorField(
+              label: 'Search URL with {query}',
               controller: url,
-              decoration: const InputDecoration(
-                labelText: 'Search URL with {query}',
-              ),
-              maxLines: 3,
+              keyboardType: TextInputType.url,
+              textInputAction: TextInputAction.done,
+              hintText: 'https://example.com/search?q={query}',
             ),
           ],
         ),

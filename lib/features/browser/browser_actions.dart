@@ -93,6 +93,8 @@ mixin _BrowserActions on State<BrowserShell> {
       useSafeArea: true,
       showDragHandle: false,
       builder: (context) {
+        final colors = Theme.of(context).colorScheme;
+        final dark = Theme.of(context).brightness == Brightness.dark;
         final landscape =
             MediaQuery.orientationOf(context) == Orientation.landscape;
         return Padding(
@@ -114,7 +116,7 @@ mixin _BrowserActions on State<BrowserShell> {
                       width: 32,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD4DDE8),
+                        color: colors.outline,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -149,8 +151,10 @@ mixin _BrowserActions on State<BrowserShell> {
                               children: [
                                 CircleAvatar(
                                   radius: landscape ? 18 : 20,
-                                  backgroundColor: const Color(0xFFEAF3FF),
-                                  child: Icon(item.$2, color: CrockTheme.blue),
+                                  backgroundColor: dark
+                                      ? colors.surfaceContainerHigh
+                                      : colors.primaryContainer,
+                                  child: Icon(item.$2, color: colors.primary),
                                 ),
                                 SizedBox(height: landscape ? 5 : 10),
                                 Text(
@@ -187,10 +191,11 @@ mixin _BrowserActions on State<BrowserShell> {
       ('Autofill contact profile', Icons.person_outline, 'profile'),
       ('Fill contact details', Icons.contact_page_outlined, 'fillProfile'),
       ('Private Space', Icons.shield_outlined, 'vault'),
+      ('History', Icons.history_rounded, 'history'),
       ('Clipboard manager', Icons.content_paste_rounded, 'clipboard'),
       ('QR / barcode scanner', Icons.qr_code_scanner, 'qr'),
       ('Manage shortcuts', Icons.grid_view_rounded, 'shortcuts'),
-      ('Hide an ad / element', Icons.block_rounded, 'hideAd'),
+      ('Touch to hide Ads', Icons.block_rounded, 'hideAd'),
     ];
     showCrockSheet<void>(
       context: context,
@@ -224,7 +229,10 @@ mixin _BrowserActions on State<BrowserShell> {
             ...tools.map(
               (item) => ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(item.$2, color: CrockTheme.blue),
+                leading: Icon(
+                  item.$2,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 title: Text(item.$1),
                 onTap: () {
                   Navigator.pop(context);
@@ -668,12 +676,11 @@ mixin _BrowserActions on State<BrowserShell> {
   Future<void> _hideElement() async {
     if (!_needPage()) return;
     try {
-      await browser.page('pickElement');
+      if (await browser.page('pickElement') != true) {
+        throw StateError('The webpage is not ready. Try again after it loads.');
+      }
       if (mounted) {
-        crockMessage(
-          context,
-          'Tap the ad or element you want to hide on this site',
-        );
+        crockMessage(context, 'Touch the ad you want to hide on this site');
       }
     } catch (e) {
       if (mounted) crockMessage(context, e);

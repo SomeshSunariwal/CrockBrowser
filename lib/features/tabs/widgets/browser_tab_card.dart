@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/browser_tab.dart';
 import '../../../core/theme/crock_theme.dart';
 import '../../../shared/widgets/crock_logo.dart';
+import 'tab_window_transition.dart';
 
 class BrowserTabCard extends StatelessWidget {
   const BrowserTabCard({
@@ -12,9 +13,12 @@ class BrowserTabCard extends StatelessWidget {
     required this.grid,
     required this.onSelect,
     required this.onClose,
+    this.previewHero = false,
+    this.showClose = true,
   });
   final BrowserTab tab;
   final bool selected, grid;
+  final bool previewHero, showClose;
   final VoidCallback onSelect, onClose;
 
   String get title => tab.atHome ? 'Home' : tab.title;
@@ -58,6 +62,71 @@ class BrowserTabCard extends StatelessWidget {
     ),
   );
 
+  Widget _preview(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final image = ClipRRect(
+      key: ValueKey('tab-preview-${tab.id}'),
+      borderRadius: tabPreviewCorners,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              colors.surfaceContainerLow,
+              colors.surfaceContainerHighest,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: tab.thumbnail != null && !tab.atHome
+            ? Image.memory(
+                tab.thumbnail!,
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.fitWidth,
+                alignment: Alignment.topCenter,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) => Center(
+                  child: Icon(
+                    Icons.public_rounded,
+                    color: colors.primary,
+                    size: 40,
+                  ),
+                ),
+              )
+            : Center(
+                child: tab.atHome
+                    ? const CrockLogo(size: 48)
+                    : Icon(
+                        Icons.public_rounded,
+                        color: colors.primary,
+                        size: 40,
+                      ),
+              ),
+      ),
+    );
+    final preview = Stack(
+      fit: StackFit.expand,
+      children: [
+        image,
+        if (showClose)
+          Positioned(
+            top: 4,
+            right: 4,
+            child: _TabCardChrome(slide: false, child: _close(overlay: true)),
+          ),
+      ],
+    );
+    if (!previewHero) return preview;
+    return Hero(
+      key: tabPreviewHeroKey,
+      tag: tabWindowHero(tab.id),
+      createRectTween: tabWindowRectTween,
+      flightShuttleBuilder: tabFlightFor(tab),
+      child: preview,
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Material(
     color: Theme.of(context).colorScheme.surface,
@@ -85,89 +154,43 @@ class BrowserTabCard extends StatelessWidget {
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16),
-                          ),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerLow,
-                                  Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                            ),
-                            child: tab.thumbnail != null && !tab.atHome
-                                ? Image.memory(
-                                    tab.thumbnail!,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    fit: BoxFit.cover,
-                                    alignment: Alignment.topCenter,
-                                    gaplessPlayback: true,
-                                    errorBuilder: (_, error, stackTrace) =>
-                                        const Center(
-                                          child: Icon(
-                                            Icons.public_rounded,
-                                            size: 40,
-                                            color: CrockTheme.blue,
-                                          ),
-                                        ),
-                                  )
-                                : Center(
-                                    child: tab.atHome
-                                        ? const CrockLogo(size: 48)
-                                        : const Icon(
-                                            Icons.public_rounded,
-                                            size: 40,
-                                            color: CrockTheme.blue,
-                                          ),
-                                  ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: _close(overlay: true),
+                        child: _preview(context),
                       ),
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 9),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
+                _TabCardChrome(
+                  key: ValueKey('tab-metadata-${tab.id}'),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 9),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            height: 1.3,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        host,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 11,
+                        const SizedBox(height: 3),
+                        Text(
+                          host,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -198,10 +221,43 @@ class BrowserTabCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  _close(),
+                  if (showClose) _close(),
                 ],
               ),
             ),
     ),
   );
+}
+
+/// Keep the footer laid out while it fades and rises with the overview route.
+/// The preview Hero can then land at its final size without a last-frame reflow.
+class _TabCardChrome extends StatelessWidget {
+  const _TabCardChrome({super.key, required this.child, this.slide = true});
+  final Widget child;
+  final bool slide;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    final animation =
+        ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation;
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (_, child) {
+        final progress = const Interval(
+          .35,
+          1,
+          curve: Curves.easeOutCubic,
+        ).transform(animation.value);
+        return Opacity(
+          opacity: progress,
+          child: Transform.translate(
+            offset: Offset(0, slide ? 12 * (1 - progress) : 0),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
 }

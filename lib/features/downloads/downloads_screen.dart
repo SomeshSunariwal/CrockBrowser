@@ -6,6 +6,7 @@ import '../../core/storage/browser_store.dart';
 import '../../shared/widgets/crock_logo.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import 'download_controller.dart';
+import 'download_feedback.dart';
 import 'download_sheet.dart';
 import '../files/files_screen.dart';
 import '../files/archive_actions.dart';
@@ -524,6 +525,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 
   Future<void> _action(Map<String, dynamic> task, String action) async {
+    if (action == 'open') {
+      await openCompletedDownload(
+        context,
+        widget.downloads,
+        task['id'] as String,
+      );
+      return;
+    }
     try {
       if (['cancel', 'remove'].contains(action) &&
           !await confirmCrock(
@@ -535,7 +544,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           )) {
         return;
       }
-      if (['open', 'share', 'export', 'extract'].contains(action)) {
+      if (['share', 'export', 'extract'].contains(action)) {
         final file = await widget.downloads.file(task['id'] as String);
         if (file['exists'] != true) {
           throw StateError('The local file has been moved or removed');
@@ -554,47 +563,20 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           return;
         }
         if (file['stream'] == true) {
-          if (action != 'open') {
-            throw StateError(
-              'Adaptive media is stored as segments for offline playback in Crock Player.',
-            );
-          }
-          await NativeBridge.instance.call('media.play', {
-            'uri': file['url'],
-            'downloadId': task['id'],
-          });
-          return;
+          throw StateError(
+            'Adaptive media is stored as segments for offline playback in Crock Player.',
+          );
         }
         if (file['torrent'] == true) {
-          if (action != 'open') {
-            throw StateError(
-              'Open the torrent folder to share or export individual files.',
-            );
-          }
-          if (mounted) {
-            await Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (context) =>
-                    FilesScreen(initialPath: file['path'] as String),
-              ),
-            );
-          }
-          return;
+          throw StateError(
+            'Open the torrent folder to share or export individual files.',
+          );
         }
-        final mime = file['mime'] as String? ?? '';
-        if (action == 'open' &&
-            (mime.startsWith('video/') || mime.startsWith('audio/'))) {
-          await NativeBridge.instance.call('media.play', {
-            'path': file['path'],
-          });
-        } else {
-          await NativeBridge.instance.call('files.$action', {
-            'path': file['path'],
-            'name': file['name'],
-            'mime': file['mime'],
-          });
-        }
+        await NativeBridge.instance.call('files.$action', {
+          'path': file['path'],
+          'name': file['name'],
+          'mime': file['mime'],
+        });
       } else {
         await widget.downloads.command(task['id'] as String, action);
       }

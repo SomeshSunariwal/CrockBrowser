@@ -26,6 +26,7 @@ class BrowserController extends ChangeNotifier {
   final List<BrowserTab> closedTabs = [];
   final Map<int, String> _ids = {};
   final Map<String, MethodChannel> _channels = {};
+  final Map<String, Rect? Function()> _thumbnailBounds = {};
   final Map<String, Future<void>> _capturingThumbnails = {};
   final Set<String> _thumbnailCapturedForLoad = {};
   final Map<String, String> _pendingOffline = {};
@@ -77,9 +78,10 @@ class BrowserController extends ChangeNotifier {
     };
   }
 
-  void attach(int view, BrowserTab tab) {
+  void attach(int view, BrowserTab tab, {Rect? Function()? thumbnailBounds}) {
     _ids[view] = tab.id;
     _channels[tab.id] = MethodChannel('croc/webview/$view');
+    if (thumbnailBounds != null) _thumbnailBounds[tab.id] = thumbnailBounds;
     unawaited(_setTabActivity(tab));
     final offline = _pendingOffline.remove(tab.id);
     if (offline != null) {
@@ -110,7 +112,18 @@ class BrowserController extends ChangeNotifier {
 
   Future<void> _captureThumbnail(BrowserTab tab, MethodChannel channel) async {
     try {
-      final image = await channel.invokeMethod<Uint8List>('captureThumbnail');
+      final bounds = _thumbnailBounds[tab.id]?.call();
+      final image = await channel.invokeMethod<Uint8List>(
+        'captureThumbnail',
+        bounds == null
+            ? null
+            : {
+                'left': bounds.left.round(),
+                'top': bounds.top.round(),
+                'right': bounds.right.round(),
+                'bottom': bounds.bottom.round(),
+              },
+      );
       if (image != null && tabs.contains(tab)) {
         tab.thumbnail = image;
         notifyListeners();
@@ -284,6 +297,7 @@ class BrowserController extends ChangeNotifier {
       unawaited(_setTabActivity(tabs[index], active: false));
     }
     final removed = tabs.removeAt(index);
+    _thumbnailBounds.remove(removed.id);
     _scrollY.remove(removed.id);
     _scrollDirection.remove(removed.id);
     _scrollable.remove(removed.id);

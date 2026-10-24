@@ -2,7 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-final crockNotification = ValueNotifier<String?>(null);
+class CrockNotification {
+  const CrockNotification(this.message, {this.actionLabel, this.onAction});
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+}
+
+final crockNotification = ValueNotifier<CrockNotification?>(null);
 final crockNotificationObscured = ValueNotifier<bool>(false);
 final crockAddressBarKey = GlobalKey();
 
@@ -107,7 +114,7 @@ class _CrockNotificationHostState extends State<CrockNotificationHost> {
                               children: [
                                 Expanded(
                                   child: Text(
-                                    message,
+                                    message.message,
                                     style: TextStyle(
                                       color: Theme.of(context)
                                           .colorScheme
@@ -116,18 +123,34 @@ class _CrockNotificationHostState extends State<CrockNotificationHost> {
                                     ),
                                   ),
                                 ),
-                                IconButton(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onInverseSurface,
-                                  onPressed: () =>
-                                      crockNotification.value = null,
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    size: 20,
-                                    semanticLabel: 'Dismiss notification',
+                                if (message.actionLabel != null &&
+                                    message.onAction != null)
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Theme.of(context)
+                                          .colorScheme
+                                          .inversePrimary,
+                                    ),
+                                    onPressed: () {
+                                      if (_version != version) return;
+                                      crockNotification.value = null;
+                                      message.onAction!();
+                                    },
+                                    child: Text(message.actionLabel!),
+                                  )
+                                else
+                                  IconButton(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onInverseSurface,
+                                    onPressed: () =>
+                                        crockNotification.value = null,
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      size: 20,
+                                      semanticLabel: 'Dismiss notification',
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
                           ),

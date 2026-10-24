@@ -9,6 +9,7 @@ import android.view.*;
 import android.webkit.*;
 import android.widget.FrameLayout;
 import com.example.crocbrowser.*;
+import com.example.crocbrowser.browser.ElementHidingScripts;
 import com.example.crocbrowser.downloads.*;
 import com.example.crocbrowser.files.FilesBridge;
 import com.example.crocbrowser.media.MediaPlayerActivity;
@@ -33,6 +34,7 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
   private final DownloadRepository downloads;
   private final ExecutorService io = Executors.newSingleThreadExecutor();
   private final Handler main = new Handler(Looper.getMainLooper());
+  private final Set<WebView> pages = Collections.newSetFromMap(new WeakHashMap<>());
   private EventChannel.EventSink sink;
   private Map<String, Object> pendingNavigation;
   private MethodChannel.Result scanResult, permissionResult;
@@ -45,8 +47,16 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
       new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent i) {
-          emit(JsonCodec.map("type", "downloads", "error", i.getStringExtra("error"),
-              "tasksJson", i.getStringExtra("tasks"), "requestId", i.getStringExtra("requestId")));
+          emit(
+              JsonCodec.map(
+                  "type",
+                  "downloads",
+                  "error",
+                  i.getStringExtra("error"),
+                  "tasksJson",
+                  i.getStringExtra("tasks"),
+                  "requestId",
+                  i.getStringExtra("requestId")));
         }
       };
 
@@ -152,13 +162,38 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
         return;
       }
       if (method.equals("browser.clearData")) {
-        CookieManager.getInstance().removeAllCookies(value -> CookieManager.getInstance().flush());
-        WebStorage.getInstance().deleteAllData();
-        result.success(null);
+        if (Boolean.TRUE.equals(args.get("storage"))) {
+          for (WebView page : pages) {
+            page.evaluateJavascript(
+                "(()=>{try{localStorage.clear();sessionStorage.clear();}catch(e){}})()", null);
+          }
+          WebStorage.getInstance().deleteAllData();
+        }
+        if (Boolean.TRUE.equals(args.get("cache"))) {
+          WebView page = pages.stream().findFirst().orElse(null);
+          boolean temporary = page == null;
+          if (temporary) page = new WebView(activity);
+          try {
+            page.clearCache(true);
+          } finally {
+            if (temporary) page.destroy();
+          }
+        }
+        if (Boolean.TRUE.equals(args.get("cookies"))) {
+          CookieManager.getInstance()
+              .removeAllCookies(
+                  value -> {
+                    CookieManager.getInstance().flush();
+                    result.success(null);
+                  });
+        } else {
+          result.success(null);
+        }
         return;
       }
       if (method.equals("blocking.clear")) {
         store.write("hidden_elements", "{}");
+        for (WebView page : pages) applyHiddenElements(page);
         result.success(null);
         return;
       }
@@ -464,15 +499,32 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
     }
   }
 
+  public void registerPage(WebView view) {
+    pages.add(view);
+  }
+
+  public void unregisterPage(WebView view) {
+    pages.remove(view);
+  }
+
   public void saveHiddenElement(WebView view, String selector) {
     try {
       Uri uri = Uri.parse(view.getUrl());
+      if (uri.getHost() == null
+          || selector == null
+          || selector.isBlank()
+          || selector.length() > 4096)
+        throw new IllegalArgumentException("Invalid page element selection");
       JSONObject hidden = new JSONObject(store.read("hidden_elements", "{}"));
       JSONArray rules = hidden.optJSONArray(uri.getHost());
       if (rules == null) rules = new JSONArray();
-      rules.put(selector);
+      boolean exists = false;
+      for (int i = 0; i < rules.length(); i++)
+        if (selector.equals(rules.optString(i))) exists = true;
+      if (!exists) rules.put(selector);
       hidden.put(uri.getHost(), rules);
       store.write("hidden_elements", hidden.toString());
+      applyHiddenElements(view);
       emit(JsonCodec.map("type", "message", "text", "Element hidden on this site"));
     } catch (Exception error) {
       emit(JsonCodec.map("type", "message", "text", error.getMessage()));
@@ -483,13 +535,17 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
     try {
       JSONObject hidden = new JSONObject(store.read("hidden_elements", "{}"));
       JSONArray rules = hidden.optJSONArray(Uri.parse(view.getUrl()).getHost());
-      if (rules != null)
-        view.evaluateJavascript(
-            "(()=>{const rules="
-                + rules
-                + ";for(const rule of"
-                + " rules){try{document.querySelectorAll(rule).forEach(el=>el.style.setProperty('display','none','important'));}catch(e){}}})()",
-            null);
+      JSONArray safeRules = new JSONArray();
+      if (rules != null) {
+        for (int i = 0; i < rules.length(); i++) {
+          String selector = rules.optString(i);
+          // The old picker generated broad tag chains that hid unrelated items.
+          if (!selector.isBlank()
+              && selector.length() <= 4096
+              && !selector.matches("[a-zA-Z0-9 >]+")) safeRules.put(selector);
+        }
+      }
+      view.evaluateJavascript(ElementHidingScripts.apply(safeRules), null);
     } catch (Exception ignored) {
     }
   }

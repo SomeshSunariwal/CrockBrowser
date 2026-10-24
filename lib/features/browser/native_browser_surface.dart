@@ -44,7 +44,32 @@ class NativeBrowserSurface extends StatelessWidget {
             const <String>[],
           ),
         },
-        onPlatformViewCreated: (view) => browser.attach(view, tab),
+        onPlatformViewCreated: (view) => browser.attach(
+          view,
+          tab,
+          thumbnailBounds: () {
+            if (!context.mounted) return null;
+            final box = context.findRenderObject();
+            if (box is! RenderBox || !box.hasSize) return null;
+            final flutterView = View.of(context);
+            final scale = flutterView.devicePixelRatio;
+            final origin = box.localToGlobal(Offset.zero) * scale;
+            return Rect.fromLTWH(
+              origin.dx,
+              origin.dy,
+              box.size.width * scale,
+              box.size.height * scale,
+            ).intersect(
+              Rect.fromLTWH(
+                0,
+                0,
+                flutterView.physicalSize.width,
+                flutterView.physicalSize.height -
+                    flutterView.viewPadding.bottom,
+              ),
+            );
+          },
+        ),
       ),
     );
   }

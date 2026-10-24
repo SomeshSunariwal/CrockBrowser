@@ -42,8 +42,11 @@ public final class BrowserView implements PlatformView {
   private boolean failed = false, blockAds = false, disposed = false, darkTheme = false;
   private boolean active = true;
   private boolean touching = false, draggingPage = false;
+  private boolean pickingElement = false, selectingElement = false, pickerMoved = false;
+  private int pickerGeneration;
+  private String pickerUrl;
   private float touchX, touchY;
-  private String normalAgent, lastTitle = "";
+  private String normalAgent;
   private static final String[] AD_HOSTS = {
     "doubleclick.net",
     "googlesyndication.com",
@@ -71,6 +74,7 @@ public final class BrowserView implements PlatformView {
                 ? com.example.crocbrowser.R.style.BrowserWebViewDarkTheme
                 : com.example.crocbrowser.R.style.BrowserWebViewLightTheme);
     view = new WebView(webContext);
+    host.registerPage(view);
     active = Boolean.TRUE.equals(args.get("active"));
     if (WebViewFeature.isFeatureSupported(WebViewFeature.MUTE_AUDIO))
       WebViewCompat.setAudioMuted(view, !active);
@@ -139,6 +143,7 @@ public final class BrowserView implements PlatformView {
 
           @Override
           public void onPageStarted(WebView v, String url, Bitmap icon) {
+            cancelElementPicker();
             draggingPage = false;
             loginCapture.started(url);
             failed = false;
@@ -237,13 +242,7 @@ public final class BrowserView implements PlatformView {
 
           @Override
           public void onReceivedTitle(WebView v, String title) {
-            if (title != null && title.startsWith("CROC_HIDE:")) {
-              host.saveHiddenElement(v, title.substring(10));
-              v.evaluateJavascript("document.title=" + org.json.JSONObject.quote(lastTitle), null);
-            } else {
-              lastTitle = title == null ? "" : title;
-              state(v.getProgress());
-            }
+            state(v.getProgress());
           }
 
           @Override
@@ -301,6 +300,7 @@ public final class BrowserView implements PlatformView {
     // events supply viewport metadata and inertia after the finger is released.
     view.setOnTouchListener(
         (v, event) -> {
+          if (pickingElement) return handleElementTouch(event);
           float y = event.getRawY();
           switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
@@ -359,7 +359,7 @@ public final class BrowserView implements PlatformView {
                 result.success(null);
                 break;
               case "captureThumbnail":
-                captureThumbnail(result);
+                captureThumbnail(data, result);
                 break;
               case "settings":
                 boolean previousDarkTheme = darkTheme;
@@ -431,8 +431,15 @@ public final class BrowserView implements PlatformView {
                     result);
                 break;
               case "pickElement":
-                view.evaluateJavascript(BrowserScripts.PICK_ELEMENT, null);
-                result.success(null);
+                Uri page = Uri.parse(view.getUrl() == null ? "" : view.getUrl());
+                if (!active
+                    || (!"http".equals(page.getScheme()) && !"https".equals(page.getScheme())))
+                  throw new IllegalStateException("Open a webpage before hiding an ad");
+                cancelElementPicker();
+                pickingElement = true;
+                pickerUrl = view.getUrl();
+                refreshLayout.setEnabled(false);
+                result.success(true);
                 break;
               case "offline":
                 host.saveOffline(view, result);
@@ -453,6 +460,74 @@ public final class BrowserView implements PlatformView {
         });
     String url = JsonCodec.string(args, "url", "");
     if (!url.isEmpty()) load(url);
+  }
+
+  private void cancelElementPicker() {
+    pickerGeneration++;
+    pickingElement = false;
+    selectingElement = false;
+    pickerUrl = null;
+    refreshLayout.setEnabled(true);
+  }
+
+  private boolean handleElementTouch(MotionEvent event) {
+    if (selectingElement) return true;
+    switch (event.getActionMasked()) {
+      case MotionEvent.ACTION_DOWN:
+        touchX = event.getX();
+        touchY = event.getY();
+        pickerMoved = false;
+        break;
+      case MotionEvent.ACTION_MOVE:
+        if (Math.hypot(event.getX() - touchX, event.getY() - touchY)
+            > ViewConfiguration.get(view.getContext()).getScaledTouchSlop()) pickerMoved = true;
+        break;
+      case MotionEvent.ACTION_UP:
+        view.performClick();
+        if (!pickerMoved) selectElementAt(event.getX(), event.getY());
+        break;
+      case MotionEvent.ACTION_POINTER_DOWN:
+      case MotionEvent.ACTION_CANCEL:
+        pickerMoved = true;
+        break;
+      default:
+        break;
+    }
+    // Capture before the WebView, so links and cross-origin frames cannot consume
+    // the selection or navigate away instead of hiding the element.
+    return true;
+  }
+
+  private void selectElementAt(float x, float y) {
+    if (view.getWidth() <= 0 || view.getHeight() <= 0) return;
+    final int generation = pickerGeneration;
+    final String url = pickerUrl;
+    selectingElement = true;
+    view.evaluateJavascript(
+        ElementHidingScripts.pick((double) x / view.getWidth(), (double) y / view.getHeight(), url),
+        json -> {
+          if (disposed || !pickingElement || generation != pickerGeneration) return;
+          selectingElement = false;
+          if (!Objects.equals(url, view.getUrl())) {
+            cancelElementPicker();
+            return;
+          }
+          try {
+            Object selected = new org.json.JSONTokener(json).nextValue();
+            if (selected instanceof String && !((String) selected).isEmpty()) {
+              cancelElementPicker();
+              host.saveHiddenElement(view, (String) selected);
+            } else {
+              host.emit(
+                  JsonCodec.map(
+                      "type", "message", "text", "Touch an ad or page element to hide it"));
+            }
+          } catch (Exception error) {
+            cancelElementPicker();
+            host.emit(
+                JsonCodec.map("type", "message", "text", "Could not select this page element"));
+          }
+        });
   }
 
   private void emitScroll(float delta, String source) {
@@ -476,6 +551,7 @@ public final class BrowserView implements PlatformView {
   private void setActive(boolean next) {
     if (disposed) return;
     active = next;
+    if (!active) cancelElementPicker();
     // Muting also covers cross-origin players and WebAudio that DOM queries cannot reach.
     if (WebViewFeature.isFeatureSupported(WebViewFeature.MUTE_AUDIO))
       WebViewCompat.setAudioMuted(view, !active);
@@ -522,7 +598,7 @@ public final class BrowserView implements PlatformView {
     if (args.containsKey("adBlock")) blockAds = Boolean.TRUE.equals(args.get("adBlock"));
   }
 
-  private void captureThumbnail(MethodChannel.Result result) {
+  private void captureThumbnail(Map<String, Object> bounds, MethodChannel.Result result) {
     if (disposed || view.getWidth() <= 0 || view.getHeight() <= 0) {
       result.success(null);
       return;
@@ -539,7 +615,22 @@ public final class BrowserView implements PlatformView {
             location[1],
             location[0] + view.getWidth(),
             location[1] + view.getHeight());
-    Bitmap bitmap = Bitmap.createBitmap(360, 400, Bitmap.Config.ARGB_8888);
+    // AndroidView may live in a virtual display. Its location is relative to that
+    // display, not the Activity window PixelCopy reads. Flutter supplies the real
+    // visible screen bounds, including the toolbar's current translated position.
+    if (bounds.containsKey("left")) {
+      source.set(
+          JsonCodec.integer(bounds, "left", 0),
+          JsonCodec.integer(bounds, "top", 0),
+          JsonCodec.integer(bounds, "right", 0),
+          JsonCodec.integer(bounds, "bottom", 0));
+      View decor = host.activity.getWindow().getDecorView();
+      if (!source.intersect(0, 0, decor.getWidth(), decor.getHeight())) {
+        result.success(null);
+        return;
+      }
+    }
+    Bitmap bitmap = thumbnailBitmap();
     try {
       PixelCopy.request(
           host.activity.getWindow(),
@@ -551,7 +642,7 @@ public final class BrowserView implements PlatformView {
                 result.success(null);
                 return;
               }
-              if (copyResult != PixelCopy.SUCCESS || isBlack(bitmap)) {
+              if (copyResult != PixelCopy.SUCCESS || isBlank(bitmap)) {
                 Bitmap fallback = captureWebViewFrame();
                 if (fallback == null) {
                   result.success(null);
@@ -593,30 +684,42 @@ public final class BrowserView implements PlatformView {
     return output.toByteArray();
   }
 
-  private static boolean isBlack(Bitmap bitmap) {
-    int black = 0;
+  private Bitmap thumbnailBitmap() {
+    // Keep the viewport aspect ratio so a tab preview can expand into its page
+    // without stretching or cropping the lower portion of the visible screen.
+    int height =
+        Math.max(
+            1, Math.min(1280, Math.round(360f * view.getHeight() / Math.max(1, view.getWidth()))));
+    return Bitmap.createBitmap(360, height, Bitmap.Config.ARGB_8888);
+  }
+
+  private static boolean isBlank(Bitmap bitmap) {
+    int flat = 0;
     int sampled = 0;
+    int reference = bitmap.getPixel(bitmap.getWidth() / 2, bitmap.getHeight() / 2);
     for (int y = 4; y < bitmap.getHeight(); y += 12) {
       for (int x = 4; x < bitmap.getWidth(); x += 12) {
         int pixel = bitmap.getPixel(x, y);
-        if (Color.red(pixel) < 6 && Color.green(pixel) < 6 && Color.blue(pixel) < 6) black++;
+        if (Math.abs(Color.red(pixel) - Color.red(reference)) < 8
+            && Math.abs(Color.green(pixel) - Color.green(reference)) < 8
+            && Math.abs(Color.blue(pixel) - Color.blue(reference)) < 8) flat++;
         sampled++;
       }
     }
-    return sampled > 0 && black >= sampled * 0.98;
+    return sampled > 0 && flat >= sampled * 0.98;
   }
 
   private Bitmap captureWebViewFrame() {
     if (disposed || view.getWidth() <= 0 || view.getHeight() <= 0) return null;
-    Bitmap bitmap = Bitmap.createBitmap(360, 400, Bitmap.Config.ARGB_8888);
+    Bitmap bitmap = thumbnailBitmap();
     try {
       Canvas canvas = new Canvas(bitmap);
       canvas.drawColor(Color.WHITE);
       float scale = 360f / view.getWidth();
-      // WebView.draw() already accounts for its current scroll offset. Drawing
-      // a whole-document Picture and translating it here can move the viewport
-      // past its content after a longer scroll, leaving a mostly blank preview.
       canvas.scale(scale, scale);
+      // Reproduce the parent ViewGroup's scroll translation when drawing this
+      // view directly into a bitmap instead of through its normal parent.
+      canvas.translate(-view.getScrollX(), -view.getScrollY());
       view.draw(canvas);
       return bitmap;
     } catch (RuntimeException error) {
@@ -677,6 +780,8 @@ public final class BrowserView implements PlatformView {
 
   @Override
   public void dispose() {
+    cancelElementPicker();
+    host.unregisterPage(view);
     disposed = true;
     loginCapture.dispose();
     channel.setMethodCallHandler(null);

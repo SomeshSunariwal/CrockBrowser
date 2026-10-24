@@ -8,6 +8,7 @@ import '../../core/storage/browser_store.dart';
 import '../../core/theme/crock_theme.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import '../downloads/download_controller.dart';
+import '../downloads/download_feedback.dart';
 import '../downloads/download_sheet.dart';
 import '../downloads/downloads_screen.dart';
 import '../files/files_screen.dart';
@@ -21,9 +22,11 @@ import '../reading/autofill_profile_screen.dart';
 import '../reading/clipboard_screen.dart';
 import '../settings/settings_screen.dart';
 import '../tabs/tabs_screen.dart';
+import '../tabs/widgets/tab_window_transition.dart';
 import 'browser_controller.dart';
 import 'native_browser_surface.dart';
 import 'widgets/browser_address_bar.dart';
+import 'widgets/tab_toolbar_transition.dart';
 import '../../shared/widgets/crock_notification.dart';
 import '../../shared/widgets/sliding_address_bar.dart';
 
@@ -52,6 +55,7 @@ class _BrowserShellState extends State<BrowserShell>
   final downloads = DownloadController();
   late final loginPrompts = LoginSavePrompt(store);
   late final StreamSubscription<Map<String, dynamic>> events;
+  late final StreamSubscription<Map<String, dynamic>> _completedDownloads;
   final address = TextEditingController(), addressFocus = FocusNode();
   late final AnimationController _addressMotion;
   final _addressContentKey = GlobalKey();
@@ -59,6 +63,7 @@ class _BrowserShellState extends State<BrowserShell>
   String? _addressTab;
   bool _addressWasLoading = false;
   bool _openingTabs = false;
+  final _tabToolbarMotion = ProxyAnimation(const AlwaysStoppedAnimation(0));
   @override
   BrowserStore get store => widget.store;
   @override
@@ -72,6 +77,12 @@ class _BrowserShellState extends State<BrowserShell>
     addressFocus.addListener(_addressFocused);
     WidgetsBinding.instance.addObserver(this);
     events = browser.events.stream.listen(_event);
+    _completedDownloads = downloads.completions.listen((task) {
+      if (mounted &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        showDownloadComplete(context, downloads, task);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.openDownloads) _tool('downloads');
       _applyDevice();
@@ -219,10 +230,27 @@ class _BrowserShellState extends State<BrowserShell>
       await browser.captureThumbnails(refresh: true);
       await browser.setTabOverviewVisible(true);
       if (mounted) {
-        await Navigator.push<void>(
-          context,
-          MaterialPageRoute(builder: (_) => TabsScreen(browser: browser)),
+        final route = PageRouteBuilder<void>(
+          transitionDuration: Duration(
+            milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 280,
+          ),
+          reverseTransitionDuration: Duration(
+            milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 350,
+          ),
+          pageBuilder: (_, _, _) => TabsScreen(browser: browser),
+          transitionsBuilder: (_, animation, _, child) => FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ),
+            child: child,
+          ),
         );
+        final popped = Navigator.push<void>(context, route);
+        _tabToolbarMotion.parent = route.animation;
+        await popped;
+        await route.completed;
+        _tabToolbarMotion.parent = null;
       }
     } finally {
       if (mounted) await browser.setTabOverviewVisible(false);
@@ -244,6 +272,8 @@ class _BrowserShellState extends State<BrowserShell>
         _tool('private');
       case 'downloads':
         _tool('downloads');
+      case 'history':
+        _tool('history');
       case 'browserMenu':
         _menu();
       case 'settings':
@@ -330,29 +360,55 @@ class _BrowserShellState extends State<BrowserShell>
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        StableBrowserViewport(
-                          height:
-                              !tab.atHome &&
-                                  store.setting('addressBarMode', 'static') ==
-                                      'dynamic'
-                              ? viewport.maxHeight
-                              : null,
-                          child: ExcludeSemantics(
-                            excluding: tab.atHome || tab.failed,
-                            child: IndexedStack(
-                              index: browser.selected,
-                              children: browser.tabs
-                                  .map(
-                                    (item) => NativeBrowserSurface(
-                                      key: ValueKey(item.id),
-                                      browser: browser,
-                                      tab: item,
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
+                        ExcludeSemantics(
+                          excluding: tab.atHome || tab.failed,
+                          child: IndexedStack(
+                            index: browser.selected,
+                            children: browser.tabs
+                                .map(
+                                  (item) => NativeBrowserSurface(
+                                    key: ValueKey(item.id),
+                                    browser: browser,
+                                    tab: item,
+                                  ),
+                                )
+                                .toList(),
                           ),
                         ),
+                        // Only this transparent anchor participates in the Hero.
+                        // The native WebViews remain mounted throughout the flight.
+                        if (!tab.atHome)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: HeroMode(
+                                enabled: !MediaQuery.disableAnimationsOf(
+                                  context,
+                                ),
+                                child: Hero(
+                                  tag: tabWindowHero(tab.id),
+                                  createRectTween: tabWindowRectTween,
+                                  flightShuttleBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        direction,
+                                        from,
+                                        to,
+                                      ) => tabPreviewFlight(
+                                        context,
+                                        animation,
+                                        direction,
+                                        from,
+                                        to,
+                                        preview: tab.thumbnail == null
+                                            ? null
+                                            : MemoryImage(tab.thumbnail!),
+                                      ),
+                                  child: const SizedBox.expand(),
+                                ),
+                              ),
+                            ),
+                          ),
                         if (tab.failed && !tab.atHome)
                           ColoredBox(
                             color: Theme.of(context).colorScheme.surface,
@@ -364,16 +420,30 @@ class _BrowserShellState extends State<BrowserShell>
                             ),
                           ),
                         if (tab.atHome)
-                          HomeScreen(
-                            store: store,
-                            privateMode: browser.privateMode,
-                            onSearch: _open,
-                            onTool: _tool,
-                            onShortcut: (site) => _open(site['url'] as String),
-                            onEditShortcut: (site) => editShortcut(
-                              context,
-                              store,
-                              site.isEmpty ? null : site,
+                          Hero(
+                            tag: tabWindowHero(tab.id),
+                            createRectTween: tabWindowRectTween,
+                            flightShuttleBuilder: homeTabWindowFlight,
+                            child: Material(
+                              color: Theme.of(context).scaffoldBackgroundColor,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  HomeScreen(
+                                    store: store,
+                                    privateMode: browser.privateMode,
+                                    onSearch: _open,
+                                    onTool: _tool,
+                                    onShortcut: (site) =>
+                                        _open(site['url'] as String),
+                                    onEditShortcut: (site) => editShortcut(
+                                      context,
+                                      store,
+                                      site.isEmpty ? null : site,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         if (tab.atHome &&
@@ -395,16 +465,8 @@ class _BrowserShellState extends State<BrowserShell>
       );
     },
   );
-  Widget _navigation() => TweenAnimationBuilder<double>(
-    tween: Tween(begin: 0, end: 1),
-    duration: Duration(
-      milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 280,
-    ),
-    curve: Curves.easeOutCubic,
-    builder: (context, progress, child) => Transform.translate(
-      offset: Offset(0, 24 * (1 - progress)),
-      child: Transform.scale(scale: .96 + .04 * progress, child: child),
-    ),
+  Widget _navigation() => TabToolbarTransition(
+    animation: _tabToolbarMotion,
     child: Padding(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
       child: Container(
@@ -504,6 +566,7 @@ class _BrowserShellState extends State<BrowserShell>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     events.cancel();
+    _completedDownloads.cancel();
     browser.persist();
     browser.dispose();
     downloads.dispose();

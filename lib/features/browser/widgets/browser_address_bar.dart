@@ -149,6 +149,13 @@ class BrowserAddressBar extends StatelessWidget {
                   ),
                 ),
                 PopupMenuItem(
+                  value: 'history',
+                  child: _BrowserMenuItem(
+                    icon: Icons.history_rounded,
+                    label: 'History',
+                  ),
+                ),
+                PopupMenuItem(
                   value: 'downloads',
                   child: _BrowserMenuItem(
                     icon: Icons.download_rounded,

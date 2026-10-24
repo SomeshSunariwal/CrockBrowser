@@ -14,13 +14,6 @@ public final class BrowserScripts {
           + " f=p.form||document;const"
           + " u=f.querySelector('input[autocomplete=username],input[type=email],input[name*=user],input[type=text]');return"
           + " JSON.stringify({origin:location.origin,username:u?u.value:'',password:p.value});})()";
-  public static final String PICK_ELEMENT =
-      "(()=>{window.__crocPicker=true;const"
-          + " pick=e=>{if(!window.__crocPicker)return;e.preventDefault();e.stopPropagation();const"
-          + " el=e.target;if(!el||['HTML','BODY'].includes(el.tagName))return;let"
-          + " s=el.id?'#'+CSS.escape(el.id):el.tagName.toLowerCase();if(!el.id){let"
-          + " n=el;while(n.parentElement&&n.parentElement!==document.body){s=n.parentElement.tagName.toLowerCase()+'>'+s;n=n.parentElement;}}el.style.setProperty('display','none','important');document.title='CROC_HIDE:'+s;window.__crocPicker=false;document.removeEventListener('click',pick,true);};document.addEventListener('click',pick,true);return"
-          + " true;})()";
 
   public static String fill(String username, String password) {
     return "(()=>{const p=document.querySelector('input[type=password]');if(!p)return false;const"

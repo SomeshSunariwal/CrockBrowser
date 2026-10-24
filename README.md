@@ -1,68 +1,79 @@
 # Crock Browser
 
-One Flutter application in this repository root, with **Dart UI and Java Android services**. The supplied crocodile image is the launcher, splash, home and in-app brand. The app targets Android 13 or newer and uses Android WebView for websites.
+**Your browser. Your build. Your control.**
 
-## Open in Android Studio
+## Overview
 
-Open **this existing project folder**, select the **main.dart** Run configuration and choose your Android device. Flutter and Dart plugins are installed on this machine. If asked for the Flutter SDK, select `tools/vendor/flutter` in this workspace. The Android SDK path is recorded locally in `android/local.properties`.
+Crock Browser is a local-first Android browser built with Flutter and native Android services. It combines Android WebView with a customizable interface, tab management, downloads, and tools for everyday browsing.
 
-The Android view should have **one Gradle project: `android`**. Its `app` module builds Crock Browser. `lib/` and `android/` are two parts of the same application. There is no nested `mobile` project. After the migration, close and reopen this same folder and sync Gradle if Android Studio still displays its old duplicate Gradle entry.
+The application runs on **Android 13 and newer**. Its interface is written in Dart, with Java handling WebView integration, downloads, device storage, and media playback.
 
-## Source structure
+Features include:
 
-```text
-lib/
-  main.dart                     Flutter application startup
-  core/                         Models, encrypted-store interface, native bridge, theme
-  features/
-    browser/                    Browser chrome, navigation and page actions
-    home/                       Search and editable/reorderable shortcuts
-    tabs/                       Tab grid/list and session controls
-    downloads/                  Download queue, forms and controls
-    library/                    Local bookmarks, folders, history and offline pages
-    files/                      File browser and local/device media library
-    privacy/                    Private Space and saved passwords
-    reading/                    Reader, translation, clipboard and contact autofill
-    settings/                   Search engines and selected appearance controls
-  shared/widgets/               Shared branded widgets and feature screens
-android/app/src/main/java/com/example/crocbrowser/
-  MainActivity.java             Thin Flutter activity
-  browser/                      WebView and page scripts
-  core/                         Platform routing, encrypted storage and device controls
-  downloads/                    Persistent HTTP queue, adaptive media and torrents
-  files/                        Scoped files, document picker and ZIP extraction
-  media/                        Player, PiP, background audio and request context
-  reading/                      On-device translation
-  security/                     Device-lock-gated local secrets and private files
-assets/branding/crock_logo.png    Original supplied artwork
+- **Flexible browsing:** grid and list tab views, page previews, configurable search engines, and static or dynamic address-bar behavior.
+- **Download management:** progress graphs, pause and retry controls, and Android notifications.
+- **Local organization:** bookmarks, browsing history, shortcuts, offline pages, and a file browser.
+- **Reading and media tools:** reader mode, translation, media playback, and archive extraction.
+- **Personalization:** light and dark themes, display preferences, and editable home shortcuts.
+
+## Why Use Crock Browser?
+
+### No built-in advertising or analytics trackers
+
+Crock Browser does not include advertising networks or behavioral analytics SDKs. No browser account or browser-operated cloud service is required to use it.
+
+This describes the browser application's own integrations. Websites can still use cookies and trackers; Android WebView and optional translation components also have their own provider behavior.
+
+### Your data stays under your control
+
+Bookmarks, browsing history, preferences, and download records are stored on your device. Sensitive application data uses Android Keystore-backed encryption. Private browsing uses a separate WebView profile and does not save browsing history or tabs.
+
+### Browsing that fits your preferences
+
+Choose your search engine, theme, display settings, and home shortcuts to tailor Crock Browser to your workflow.
+
+## Build and Run Crock Browser
+
+### 1. Set up the development environment
+
+Install the following:
+
+- **Flutter 3.47.7 with Dart 3.13.5**, the toolchain used for this project.
+- **Android Studio**, with the Flutter and Dart plugins if you plan to work in the IDE.
+- **Android SDK Platform 37** and **NDK 28.2.13676358**, as configured in the Android app module. Use Android Studio's bundled JDK.
+- An Android 13+ device with USB debugging enabled, or a compatible Android emulator.
+
+The project includes a Gradle wrapper; a separate Gradle installation is unnecessary.
+
+Clone or download this repository, then open a terminal in its root directory—the folder containing `pubspec.yaml`.
+
+```sh
+flutter doctor
+flutter doctor --android-licenses
+flutter pub get
+flutter analyze
 ```
 
-## Build and checks
+Resolve any Android toolchain issues reported by `flutter doctor` before continuing. In Android Studio, open the repository root as a Flutter project and use `lib/main.dart` as the entry point.
 
-With Flutter on PATH:
+### 2. Build and run on your device
 
-```powershell
-flutter pub get
-flutter analyze --no-pub
+Connect your device or start an emulator, then find its identifier:
+
+```sh
+flutter devices
+```
+
+Run the application, replacing `DEVICE_ID` with the listed identifier:
+
+```sh
+flutter run -d DEVICE_ID
+```
+
+To create an APK for development and local installation:
+
+```sh
 flutter build apk --debug
 ```
 
-This machine also has a helper for the local SDK and Windows Java temporary-directory workaround:
-
-```powershell
-.\tools\flutter-command.ps1 build apk --debug
-```
-
-Android Studio can run the same root project. A local sideload build is available at `dist/CrockBrowser-sideload.apk`; it is signed with the development key and is not for store publication. A production release needs a unique application ID and production signing key. No automated test cases have been added or run, as requested.
-
-## Features and limits
-
-See [implementation status](docs/FEATURE_STATUS.md) for implemented behavior and manual validation, and [approved scope](docs/IMPLEMENTATION_SCOPE.md) for selected/excluded features. Download support includes direct HTTP files, supported HLS/DASH on-demand media and torrent links. Website authorization, DRM, server resume support, peer availability and Android background limits still apply. Adaptive media remains in Crock's offline player cache; torrent files are browsable in Files.
-
-Local metadata and Private Space use Android Keystore encryption. Private browsing has a separate process/WebView profile and does not save tabs/history. Private file import makes an encrypted copy; the source file remains until explicitly deleted. Opening a private file in another application shares a temporary decrypted copy with that chosen app.
-
-No UC advertising, analytics, accounts, cloud backup, VPN, AI or content-feed services were copied. Android WebView and optional ML Kit translation have their own platform/provider behavior; this is not a claim of anonymity or zero network telemetry.
-
-Home layout: two rows of four bookmark-shortcut slots, including Add site; Manage opens all shortcuts. Recently visited shows real local history grouped by host and is omitted in private mode. Archive extraction supports ZIP, RAR/RAR5 and 7z, including RAR/7z password entry.
-
-Build tools: Gradle 9.8.2, AGP 9.4.1, built-in Kotlin enabled. Flutter 3.47.7 still emits two upstream legacy-DSL/applicationVariants warnings. These are not build failures; the current SDK requires its compatibility DSL setting.
+The APK is generated at `build/app/outputs/flutter-apk/app-debug.apk`.

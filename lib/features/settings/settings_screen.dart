@@ -6,9 +6,12 @@ import '../../shared/widgets/crock_logo.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import '../browser/browser_controller.dart';
 import '../home/shortcuts_screen.dart';
+import '../library/library_screen.dart';
+import '../privacy/browsing_data_time_range.dart';
 import 'search_engines_screen.dart';
 import 'widgets/appearance_panel.dart';
 import 'widgets/settings_components.dart';
+import 'widgets/clear_website_data_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, required this.browser});
@@ -154,32 +157,30 @@ class SettingsScreen extends StatelessWidget {
               ),
               SettingsRow(
                 icon: Icons.history_rounded,
-                title: 'Clear browsing history',
-                onTap: () async {
-                  if (await confirmCrock(
-                    context,
-                    'Clear history?',
-                    'Remove saved normal browsing history?',
-                  )) {
-                    store.setRows('history', []);
-                  }
-                },
+                title: 'History',
+                subtitle: 'View and manage visited pages',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => LibraryScreen(
+                      store: store,
+                      mode: 'history',
+                      onOpen: (url) {
+                        Navigator.of(context).pop();
+                        browser.open(url);
+                      },
+                      onOffline: (item) {
+                        Navigator.of(context).pop();
+                        browser.openOffline(item);
+                      },
+                    ),
+                  ),
+                ),
               ),
               SettingsRow(
                 icon: Icons.cookie_outlined,
                 title: 'Clear website data',
                 subtitle: 'Cookies, cache and local storage',
-                onTap: () async {
-                  if (await confirmCrock(
-                    context,
-                    'Clear site data?',
-                    'You will be signed out of websites. Bookmarks and downloads are kept.',
-                  )) {
-                    if (context.mounted) {
-                      await _call(context, 'browser.clearData');
-                    }
-                  }
-                },
+                onTap: () => _clearWebsiteData(context),
               ),
             ],
           ),
@@ -231,6 +232,36 @@ class SettingsScreen extends StatelessWidget {
       ),
     ),
   );
+
+  Future<void> _clearWebsiteData(BuildContext context) async {
+    final selection = await showCrockDialog<BrowsingDataSelection>(
+      context: context,
+      builder: (_) => const ClearWebsiteDataDialog(),
+    );
+    if (selection == null || selection.categories.isEmpty || !context.mounted) {
+      return;
+    }
+    final selected = selection.categories;
+    try {
+      if (selected.any((option) => option != 'history')) {
+        await NativeBridge.instance.call('browser.clearData', {
+          'cookies': selected.contains('cookies'),
+          'cache': selected.contains('cache'),
+          'storage': selected.contains('storage'),
+        });
+      }
+      if (selected.contains('history')) {
+        store.setRows('history', []);
+        await store.flush();
+        if (store.saveError != null) throw StateError(store.saveError!);
+      }
+      if (context.mounted) {
+        crockMessage(context, 'Selected browsing data cleared');
+      }
+    } catch (error) {
+      if (context.mounted) crockMessage(context, error);
+    }
+  }
 
   Future<void> _call(BuildContext context, String method) async {
     try {

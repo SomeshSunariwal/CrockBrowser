@@ -70,9 +70,18 @@ class CrockEmpty extends StatelessWidget {
   );
 }
 
-void crockMessage(BuildContext context, Object message) {
+void crockMessage(
+  BuildContext context,
+  Object message, {
+  String? actionLabel,
+  VoidCallback? onAction,
+}) {
   if (!context.mounted) return;
-  crockNotification.value = message.toString();
+  crockNotification.value = CrockNotification(
+    message.toString(),
+    actionLabel: actionLabel,
+    onAction: onAction,
+  );
 }
 
 Future<bool> confirmCrock(
