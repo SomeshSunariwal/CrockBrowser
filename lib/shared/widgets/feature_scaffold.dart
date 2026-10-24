@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'crock_logo.dart';
+import 'crock_notification.dart';
 
 class FeatureScaffold extends StatelessWidget {
   const FeatureScaffold({
@@ -29,31 +30,41 @@ class CrockEmpty extends StatelessWidget {
   final String title, detail;
   final Widget? action;
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CrockLogo(size: 64),
-          const SizedBox(height: 22),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            detail,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              height: 1.5,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CrockLogo(size: 64),
+                const SizedBox(height: 22),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  detail,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+                if (action != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: action!,
+                  ),
+              ],
             ),
           ),
-          if (action != null)
-            Padding(padding: const EdgeInsets.only(top: 20), child: action!),
-        ],
+        ),
       ),
     ),
   );
@@ -61,8 +72,7 @@ class CrockEmpty extends StatelessWidget {
 
 void crockMessage(BuildContext context, Object message) {
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(message.toString())));
+  crockNotification.value = message.toString();
 }
 
 Future<bool> confirmCrock(
@@ -137,6 +147,12 @@ Future<T?> showCrockSheet<T>({
   final navigator = Navigator.of(context);
   final theme = Theme.of(context);
   final route = ModalBottomSheetRoute<T>(
+    sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
+        ? AnimationStyle.noAnimation
+        : const AnimationStyle(
+            duration: Duration(milliseconds: 280),
+            reverseDuration: Duration(milliseconds: 200),
+          ),
     builder: builder,
     isScrollControlled: isScrollControlled,
     useSafeArea: useSafeArea,

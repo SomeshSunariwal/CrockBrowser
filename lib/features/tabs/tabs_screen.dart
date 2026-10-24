@@ -57,11 +57,13 @@ class _TabsScreenState extends State<TabsScreen> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
             child: Row(
               children: [
-                Text(
-                  '${widget.browser.tabs.length} open',
-                  style: const TextStyle(color: Color(0xFF8796A6)),
+                Expanded(
+                  child: Text(
+                    '${widget.browser.tabs.length} open',
+                    style: const TextStyle(color: Color(0xFF8796A6)),
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 12),
                 FilledButton.icon(
                   onPressed: () {
                     widget.browser.newTab();
@@ -137,30 +139,102 @@ class _TabSwipeDismissible extends StatefulWidget {
   State<_TabSwipeDismissible> createState() => _TabSwipeDismissibleState();
 }
 
-class _TabSwipeDismissibleState extends State<_TabSwipeDismissible> {
-  double _opacity = 1;
+class _TabSwipeDismissibleState extends State<_TabSwipeDismissible>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _motion;
+  Offset _offset = Offset.zero, _begin = Offset.zero, _target = Offset.zero;
+  Axis _axis = Axis.horizontal;
+  bool _closing = false;
+
+  double _extent = 1;
+  double get _progress =>
+      (_axis == Axis.horizontal ? _offset.dx : -_offset.dy) / _extent;
 
   @override
-  Widget build(BuildContext context) => Dismissible(
-    key: ValueKey(widget.tab.id),
-    direction: DismissDirection.up,
-    movementDuration: const Duration(milliseconds: 220),
-    resizeDuration: const Duration(milliseconds: 220),
-    dismissThresholds: const {DismissDirection.up: .22},
-    onUpdate: (details) {
-      final next = (1 - details.progress).clamp(0.0, 1.0).toDouble();
-      if ((next - _opacity).abs() > .01) setState(() => _opacity = next);
-    },
-    onDismissed: (_) => widget.onDismissed(),
-    child: Opacity(
-      opacity: _opacity,
-      child: BrowserTabCard(
-        tab: widget.tab,
-        selected: widget.selected,
-        grid: widget.grid,
-        onSelect: widget.onSelect,
-        onClose: widget.onClose,
+  void initState() {
+    super.initState();
+    _motion = AnimationController(vsync: this)
+      ..addListener(() {
+        setState(
+          () => _offset = Offset.lerp(
+            _begin,
+            _target,
+            Curves.easeOutCubic.transform(_motion.value),
+          )!,
+        );
+      });
+  }
+
+  void _drag(DragUpdateDetails details, Axis axis) {
+    if (_closing) return;
+    _motion.stop();
+    _axis = axis;
+    _extent = axis == Axis.horizontal
+        ? (context.size?.width ?? 1)
+        : (context.size?.height ?? 1);
+    setState(() {
+      _offset = axis == Axis.horizontal
+          ? Offset(
+              (_offset.dx + details.delta.dx).clamp(0.0, double.infinity),
+              0,
+            )
+          : Offset(
+              0,
+              (_offset.dy + details.delta.dy).clamp(
+                double.negativeInfinity,
+                0.0,
+              ),
+            );
+    });
+  }
+
+  Future<void> _settle(double velocity) async {
+    if (_closing) return;
+    final dismiss =
+        _progress >= .22 ||
+        (_axis == Axis.horizontal ? velocity > 700 : velocity < -700);
+    _closing = dismiss;
+    _begin = _offset;
+    _target = dismiss
+        ? (_axis == Axis.horizontal ? Offset(_extent, 0) : Offset(0, -_extent))
+        : Offset.zero;
+    _motion.duration = Duration(
+      milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 220,
+    );
+    try {
+      await _motion.forward(from: 0).orCancel;
+    } on TickerCanceled {
+      return;
+    }
+    if (mounted && dismiss) widget.onDismissed();
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onHorizontalDragUpdate: (details) => _drag(details, Axis.horizontal),
+    onVerticalDragUpdate: (details) => _drag(details, Axis.vertical),
+    onHorizontalDragEnd: (details) => _settle(details.primaryVelocity ?? 0),
+    onVerticalDragEnd: (details) => _settle(details.primaryVelocity ?? 0),
+    onHorizontalDragCancel: () => _settle(0),
+    onVerticalDragCancel: () => _settle(0),
+    child: Transform.translate(
+      offset: _offset,
+      child: Opacity(
+        opacity: _offset == Offset.zero ? 1 : (1 - _progress).clamp(0.0, 1.0),
+        child: BrowserTabCard(
+          tab: widget.tab,
+          selected: widget.selected,
+          grid: widget.grid,
+          onSelect: widget.onSelect,
+          onClose: widget.onClose,
+        ),
       ),
     ),
   );
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
 }

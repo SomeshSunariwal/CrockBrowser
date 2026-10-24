@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 
 abstract final class CrockTheme {
   static const blue = Color(0xFF087CFA);
@@ -23,12 +24,12 @@ abstract final class CrockTheme {
   static ThemeData get dark => _build(dark: true);
 
   static ThemeData _build({required bool dark}) {
-    const darkInk = Color(0xFFE7EEF8);
-    const darkMuted = Color(0xFFA7B5C8);
-    const darkLine = Color(0xFF2A3B50);
-    const darkSurface = Color(0xFF172536);
-    const darkBackground = Color(0xFF0D1826);
-    const darkSubtle = Color(0xFF1E3044);
+    const darkInk = Color(0xFFF2F2F2);
+    const darkMuted = Color(0xFFBDBDBD);
+    const darkLine = Color(0xFF484848);
+    const darkSurface = Color(0xFF292929);
+    const darkBackground = Color(0xFF292929);
+    const darkSubtle = Color(0xFF333333);
     final foreground = dark ? darkInk : ink;
     final mutedForeground = dark ? darkMuted : muted;
     final lineColor = dark ? darkLine : line;
@@ -39,8 +40,8 @@ abstract final class CrockTheme {
           seedColor: blue,
           brightness: dark ? Brightness.dark : Brightness.light,
         ).copyWith(
-          primary: blue,
-          onPrimary: Colors.white,
+          primary: dark ? const Color(0xFF75B5FF) : blue,
+          onPrimary: dark ? const Color(0xFF10243B) : Colors.white,
           primaryContainer: dark
               ? const Color(0xFF153A63)
               : const Color(0xFFEAF3FF),
@@ -51,7 +52,18 @@ abstract final class CrockTheme {
           surface: surfaceColor,
           onSurface: foreground,
           onSurfaceVariant: mutedForeground,
+          surfaceDim: dark ? const Color(0xFF242424) : null,
+          surfaceBright: dark ? const Color(0xFF454545) : null,
+          surfaceContainerLowest: dark ? const Color(0xFF222222) : null,
+          surfaceContainerLow: dark ? darkSubtle : null,
+          surfaceContainer: dark ? const Color(0xFF363636) : null,
+          surfaceContainerHigh: dark ? const Color(0xFF3D3D3D) : null,
+          surfaceContainerHighest: dark ? const Color(0xFF454545) : null,
+          outline: dark ? const Color(0xFF919191) : null,
           outlineVariant: lineColor,
+          inverseSurface: dark ? const Color(0xFFE6E6E6) : null,
+          onInverseSurface: dark ? darkBackground : null,
+          surfaceTint: dark ? Colors.transparent : null,
         );
     final base = ThemeData(
       useMaterial3: true,
@@ -59,6 +71,12 @@ abstract final class CrockTheme {
       colorScheme: scheme,
     );
     return base.copyWith(
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       scaffoldBackgroundColor: backgroundColor,
       textTheme: base.textTheme
           .apply(bodyColor: foreground, displayColor: foreground)
@@ -187,7 +205,8 @@ abstract final class CrockTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: ink,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: TextStyle(color: scheme.onInverseSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );

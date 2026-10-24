@@ -74,26 +74,49 @@ class SettingsRow extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-    leading: SettingsIcon(icon),
-    title: Text(title, style: Theme.of(context).textTheme.titleMedium),
-    subtitle: subtitle == null
-        ? null
-        : Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              subtitle!,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-    trailing:
-        trailing ??
-        Icon(
-          Icons.chevron_right_rounded,
-          size: 20,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-    onTap: onTap,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final controlBelow =
+          trailing != null &&
+          (constraints.maxWidth < 320 ||
+              MediaQuery.textScalerOf(context).scale(14) > 17);
+      return ListTile(
+        minLeadingWidth: 34,
+        horizontalTitleGap: 12,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+        leading: SettingsIcon(icon),
+        title: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        subtitle: subtitle == null && !controlBelow
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    if (controlBelow)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: trailing!,
+                      ),
+                  ],
+                ),
+              ),
+        trailing: controlBelow
+            ? null
+            : trailing ??
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+        onTap: onTap,
+      );
+    },
   );
 }

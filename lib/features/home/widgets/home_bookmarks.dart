@@ -46,13 +46,13 @@ class HomeBookmarks extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
-          itemCount: 8,
+          itemCount: pinned.length + 1,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 4,
             crossAxisSpacing: 8,
             mainAxisSpacing: 2,
             mainAxisExtent:
-                92 +
+                100 +
                 ((MediaQuery.textScalerOf(context).scale(11) - 11) * 2.4).clamp(
                   0,
                   100,

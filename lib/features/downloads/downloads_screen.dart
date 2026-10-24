@@ -141,7 +141,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 ],
               ),
             ),
-            if (widget.downloads.lastError != null)
+            if (widget.downloads.lastError?.trim().isNotEmpty == true)
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
@@ -245,7 +245,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
           ),
           const SizedBox(width: 12),
           Icon(
-            expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+            expanded
+                ? Icons.keyboard_arrow_up_rounded
+                : Icons.keyboard_arrow_down_rounded,
             size: 20,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
@@ -259,6 +261,21 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
     final bytes = (task['bytes'] as num? ?? 0),
         total = (task['total'] as num? ?? -1);
     final running = state == 'running', complete = state == 'complete';
+    final canRetry =
+        state == 'cancelled' || state == 'failed' || state == 'error';
+    final canPause = running || state == 'queued' || state == 'retrying';
+    final textScaler = MediaQuery.textScalerOf(context);
+    final sectionHeight =
+        (textScaler.scale(13) * 1.5 + textScaler.scale(11) * 1.5 + 27).clamp(
+          64.0,
+          double.infinity,
+        );
+    final graphColor = switch (state) {
+      'complete' => const Color(0xFF16A34A),
+      'cancelled' => const Color(0xFFFBC02D),
+      'failed' || 'error' => const Color(0xFFDC2626),
+      _ => Theme.of(context).colorScheme.primary,
+    };
     return Card(
       key: ValueKey('download-${task['id']}'),
       margin: const EdgeInsets.only(bottom: 12),
@@ -266,110 +283,121 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    complete
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.insert_drive_file_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 21,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SizedBox(
+          SizedBox(
+            height: sectionHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 40,
                     height: 40,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          task['name']?.toString() ?? 'Download',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      complete
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.insert_drive_file_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 40),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            task['name']?.toString() ?? 'Download',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          Uri.tryParse(task['url']?.toString() ?? '')?.host ?? '',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          const SizedBox(height: 3),
+                          Text(
+                            Uri.tryParse(task['url']?.toString() ?? '')?.host ??
+                                '',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      onSelected: (action) => _action(task, action),
+                      itemBuilder: (context) => [
+                        if (complete &&
+                            task['stream'] != true &&
+                            task['torrent'] != true &&
+                            isSupportedArchive(task['name'].toString()))
+                          const PopupMenuItem(
+                            value: 'extract',
+                            child: Text('Extract archive'),
+                          ),
+                        if (complete)
+                          const PopupMenuItem(
+                            value: 'open',
+                            child: Text('Open file'),
+                          ),
+                        if (complete &&
+                            task['stream'] != true &&
+                            task['torrent'] != true)
+                          const PopupMenuItem(
+                            value: 'share',
+                            child: Text('Share file'),
+                          ),
+                        if (complete &&
+                            task['stream'] != true &&
+                            task['torrent'] != true)
+                          const PopupMenuItem(
+                            value: 'export',
+                            child: Text('Save a copy…'),
+                          ),
+                        if (canRetry)
+                          const PopupMenuItem(
+                            value: 'retry',
+                            child: Text('Retry download'),
+                          ),
+                        if (!complete && !canRetry)
+                          const PopupMenuItem(
+                            value: 'cancel',
+                            child: Text('Cancel download'),
+                          ),
+                        const PopupMenuItem(
+                          value: 'remove',
+                          child: Text('Remove download and local file'),
                         ),
                       ],
+                      icon: const Icon(Icons.more_vert_rounded),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: PopupMenuButton<String>(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 40,
-                      minHeight: 40,
-                    ),
-                    onSelected: (action) => _action(task, action),
-                    itemBuilder: (context) => [
-                      if (complete &&
-                          task['stream'] != true &&
-                          task['torrent'] != true &&
-                          isSupportedArchive(task['name'].toString()))
-                        const PopupMenuItem(
-                          value: 'extract',
-                          child: Text('Extract archive'),
-                        ),
-                      if (complete)
-                        const PopupMenuItem(
-                          value: 'open',
-                          child: Text('Open file'),
-                        ),
-                      if (complete &&
-                          task['stream'] != true &&
-                          task['torrent'] != true)
-                        const PopupMenuItem(
-                          value: 'share',
-                          child: Text('Share file'),
-                        ),
-                      if (complete &&
-                          task['stream'] != true &&
-                          task['torrent'] != true)
-                        const PopupMenuItem(
-                          value: 'export',
-                          child: Text('Save a copy…'),
-                        ),
-                      if (!complete)
-                        const PopupMenuItem(
-                          value: 'cancel',
-                          child: Text('Cancel download'),
-                        ),
-                      const PopupMenuItem(
-                        value: 'remove',
-                        child: Text('Remove download and local file'),
-                      ),
-                    ],
-                    icon: const Icon(Icons.more_vert_rounded),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           Divider(
@@ -380,95 +408,94 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
             color: Theme.of(context).colorScheme.outlineVariant,
           ),
           SizedBox(
-            height: 73,
-            child: Row(
+            height: sectionHeight,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                SizedBox(
-                  width: 60,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (!complete)
-                        Center(
-                          child: IconButton(
-                            tooltip:
-                                running ||
-                                    state == 'queued' ||
-                                    state == 'retrying'
-                                ? 'Pause'
-                                : 'Resume',
-                            onPressed: () => _action(
-                              task,
-                              running ||
-                                      state == 'queued' ||
-                                      state == 'retrying'
-                                  ? 'pause'
-                                  : 'resume',
-                            ),
-                            icon: Icon(
-                              running ||
-                                      state == 'queued' ||
-                                      state == 'retrying'
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      Positioned(
-                        top: 0,
-                        bottom: 0,
-                        right: 0,
-                        child: ColoredBox(
-                          color: Theme.of(context).colorScheme.outlineVariant,
-                          child: const SizedBox(width: 1),
-                        ),
-                      ),
-                    ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _DownloadSpeedGraph(
+                    key: ValueKey(task['id']),
+                    history: (task['speedHistory'] as List? ?? const []).map((
+                      sample,
+                    ) {
+                      final point = sample as List;
+                      return Offset(
+                        (point[0] as num).toDouble(),
+                        (point[1] as num).toDouble(),
+                      );
+                    }).toList(),
+                    progress: complete
+                        ? 1
+                        : (total > 0
+                              ? (bytes / total).clamp(0.0, 1.0).toDouble()
+                              : 0),
+                    color: graphColor,
                   ),
                 ),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _DownloadSpeedGraph(
-                        key: ValueKey(task['id']),
-                        speed: running
-                            ? (task['speed'] as num? ?? 0).toDouble()
-                            : 0,
-                        color: Theme.of(context).colorScheme.primary,
+                if (!complete)
+                  Positioned(
+                    left: 8,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: IconButton(
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                        tooltip: canRetry
+                            ? 'Retry download'
+                            : canPause
+                            ? 'Pause'
+                            : 'Resume',
+                        onPressed: () => _action(
+                          task,
+                          canRetry
+                              ? 'retry'
+                              : canPause
+                              ? 'pause'
+                              : 'resume',
+                        ),
+                        icon: Icon(
+                          canRetry
+                              ? Icons.refresh_rounded
+                              : canPause
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          size: 22,
+                        ),
                       ),
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        right: 12,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${byteLabel(bytes)}${total > 0 ? ' / ${byteLabel(total)}' : ''}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              running
-                                  ? '${byteLabel(task['speed'] as num? ?? 0)}/s'
-                                  : state[0].toUpperCase() + state.substring(1),
-                              maxLines: 1,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: complete
-                                    ? Theme.of(context).colorScheme.tertiary
-                                    : Theme.of(context).colorScheme.primary,
-                              ),
-                            ),
-                          ],
+                    ),
+                  ),
+                Positioned(
+                  top: 8,
+                  left: 72,
+                  right: 12,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${byteLabel(bytes)}${total > 0 ? ' / ${byteLabel(total)}' : ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        running
+                            ? '${byteLabel(task['speed'] as num? ?? 0)}/s'
+                            : state[0].toUpperCase() + state.substring(1),
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: graphColor,
                         ),
                       ),
                     ],
@@ -671,39 +698,32 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   }
 }
 
-class _DownloadSpeedGraph extends StatefulWidget {
+class _DownloadSpeedGraph extends StatelessWidget {
   const _DownloadSpeedGraph({
     super.key,
-    required this.speed,
     required this.color,
+    required this.history,
+    required this.progress,
   });
 
-  final double speed;
   final Color color;
-
-  @override
-  State<_DownloadSpeedGraph> createState() => _DownloadSpeedGraphState();
-}
-
-class _DownloadSpeedGraphState extends State<_DownloadSpeedGraph> {
-  late final List<double> _samples = List<double>.filled(24, widget.speed);
-
-  @override
-  void didUpdateWidget(covariant _DownloadSpeedGraph oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.speed != widget.speed) {
-      _samples.add(widget.speed);
-      if (_samples.length > 32) _samples.removeAt(0);
-    }
-  }
+  final List<Offset> history;
+  final double progress;
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'Download speed history chart',
+    label: 'Download progress ${(progress * 100).round()} percent',
     child: ExcludeSemantics(
-      child: CustomPaint(
-        painter: _DownloadSpeedPainter(List<double>.of(_samples), widget.color),
-        child: const SizedBox.expand(),
+      child: RepaintBoundary(
+        child: ClipRect(
+          child: CustomPaint(
+            painter: _DownloadSpeedPainter(
+              history.isEmpty ? [Offset.zero, Offset(progress, 0)] : history,
+              color,
+            ),
+            child: const SizedBox.expand(),
+          ),
+        ),
       ),
     ),
   );
@@ -712,7 +732,7 @@ class _DownloadSpeedGraphState extends State<_DownloadSpeedGraph> {
 class _DownloadSpeedPainter extends CustomPainter {
   const _DownloadSpeedPainter(this.samples, this.color);
 
-  final List<double> samples;
+  final List<Offset> samples;
   final Color color;
 
   @override
@@ -721,16 +741,14 @@ class _DownloadSpeedPainter extends CustomPainter {
 
     final peak = samples.fold<double>(
       1,
-      (maximum, value) => value > maximum ? value : maximum,
+      (maximum, value) => value.dy > maximum ? value.dy : maximum,
     );
     final top = size.height * .40;
     final bottom = size.height * .80;
     final points = <Offset>[];
     for (var index = 0; index < samples.length; index++) {
-      final x = samples.length == 1
-          ? 0.0
-          : size.width * index / (samples.length - 1);
-      final normalized = (samples[index] / peak).clamp(0.0, 1.0);
+      final x = size.width * samples[index].dx;
+      final normalized = (samples[index].dy / peak).clamp(0.0, 1.0);
       final y = bottom - normalized * (bottom - top);
       points.add(Offset(x, y));
     }
@@ -742,10 +760,10 @@ class _DownloadSpeedPainter extends CustomPainter {
       final segment = current.dx - previous.dx;
       final before = points[index - 2 < 0 ? 0 : index - 2];
       final after = points[index + 1 < points.length ? index + 1 : index];
-      final previousControlY = (previous.dy - (current.dy - before.dy) / 6)
+      final previousControlY = (previous.dy + (current.dy - before.dy) / 6)
           .clamp(top, bottom)
           .toDouble();
-      final currentControlY = (current.dy + (after.dy - previous.dy) / 6)
+      final currentControlY = (current.dy - (after.dy - previous.dy) / 6)
           .clamp(top, bottom)
           .toDouble();
       line.cubicTo(
@@ -759,7 +777,7 @@ class _DownloadSpeedPainter extends CustomPainter {
     }
 
     final area = Path.from(line)
-      ..lineTo(size.width, size.height)
+      ..lineTo(points.last.dx, size.height)
       ..lineTo(0, size.height)
       ..close();
     final fill = Paint()

@@ -24,6 +24,8 @@ import '../tabs/tabs_screen.dart';
 import 'browser_controller.dart';
 import 'native_browser_surface.dart';
 import 'widgets/browser_address_bar.dart';
+import '../../shared/widgets/crock_notification.dart';
+import '../../shared/widgets/sliding_address_bar.dart';
 
 part 'browser_actions.dart';
 
@@ -40,19 +42,34 @@ class BrowserShell extends StatefulWidget {
 }
 
 class _BrowserShellState extends State<BrowserShell>
-    with WidgetsBindingObserver, _BrowserActions {
+    with
+        WidgetsBindingObserver,
+        SingleTickerProviderStateMixin,
+        _BrowserActions {
   @override
   late final browser = BrowserController(widget.store);
   @override
-  late final downloads = DownloadController();
+  final downloads = DownloadController();
   late final loginPrompts = LoginSavePrompt(store);
   late final StreamSubscription<Map<String, dynamic>> events;
   final address = TextEditingController(), addressFocus = FocusNode();
+  late final AnimationController _addressMotion;
+  final _addressContentKey = GlobalKey();
+  double _downwardScroll = 0;
+  String? _addressTab;
+  bool _addressWasLoading = false;
+  bool _openingTabs = false;
   @override
   BrowserStore get store => widget.store;
   @override
   void initState() {
     super.initState();
+    _addressMotion = AnimationController(
+      vsync: this,
+      value: 1,
+      duration: const Duration(milliseconds: 240),
+    );
+    addressFocus.addListener(_addressFocused);
     WidgetsBinding.instance.addObserver(this);
     events = browser.events.stream.listen(_event);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -99,6 +116,30 @@ class _BrowserShellState extends State<BrowserShell>
   void _event(Map<String, dynamic> event) {
     if (!mounted) return;
     switch (event['type']) {
+      case 'scroll':
+        if (store.setting('addressBarMode', 'static') != 'dynamic' ||
+            addressFocus.hasFocus ||
+            ModalRoute.of(context)?.isCurrent != true) {
+          return;
+        }
+        final delta = (event['deltaY'] as num? ?? 0).toDouble();
+        final y = (event['y'] as num? ?? 0).toDouble();
+        if (delta < 0 || (y <= 0 && event['source'] != 'touch')) {
+          _downwardScroll = 0;
+          _showAddressBar();
+        } else {
+          final previous = (_downwardScroll - 48).clamp(0.0, double.infinity);
+          _downwardScroll += delta;
+          final movement =
+              (_downwardScroll - 48).clamp(0.0, double.infinity) - previous;
+          if (movement > 0) {
+            final height =
+                _addressContentKey.currentContext?.size?.height ?? 52;
+            _addressMotion.stop();
+            _addressMotion.value = (_addressMotion.value - movement / height)
+                .clamp(0.0, 1.0);
+          }
+        }
       case 'loginSuggestion':
         loginPrompts.offer(
           context,
@@ -132,6 +173,27 @@ class _BrowserShellState extends State<BrowserShell>
     }
   }
 
+  void _addressFocused() {
+    if (addressFocus.hasFocus) _showAddressBar();
+  }
+
+  void _showAddressBar() {
+    if (_addressMotion.value == 1) return;
+    if (_addressMotion.isAnimating &&
+        _addressMotion.status == AnimationStatus.forward) {
+      return;
+    }
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _addressMotion.value = 1;
+    } else {
+      _addressMotion.animateTo(
+        1,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
   @override
   Future<void> _open(String value) async {
     FocusScope.of(context).unfocus();
@@ -150,7 +212,22 @@ class _BrowserShellState extends State<BrowserShell>
 
   @override
   Future<void> _showTabs() async {
-    if (mounted) _push(TabsScreen(browser: browser));
+    if (_openingTabs) return;
+    _openingTabs = true;
+    try {
+      // Capture before pausing or covering the WebView with the overview route.
+      await browser.captureThumbnails(refresh: true);
+      await browser.setTabOverviewVisible(true);
+      if (mounted) {
+        await Navigator.push<void>(
+          context,
+          MaterialPageRoute(builder: (_) => TabsScreen(browser: browser)),
+        );
+      }
+    } finally {
+      if (mounted) await browser.setTabOverviewVisible(false);
+      _openingTabs = false;
+    }
   }
 
   void _overflowAction(String action) {
@@ -181,6 +258,16 @@ class _BrowserShellState extends State<BrowserShell>
     listenable: Listenable.merge([browser, store]),
     builder: (context, _) {
       final tab = browser.current;
+      if (_addressTab != tab.id ||
+          tab.atHome ||
+          (tab.loading && !_addressWasLoading) ||
+          store.setting('addressBarMode', 'static') != 'dynamic') {
+        _addressTab = tab.id;
+        _addressMotion.stop();
+        _addressMotion.value = 1;
+        _downwardScroll = 0;
+      }
+      _addressWasLoading = tab.loading;
       if (!addressFocus.hasFocus && address.text != tab.url) {
         address.text = tab.url;
       }
@@ -197,96 +284,111 @@ class _BrowserShellState extends State<BrowserShell>
         },
         child: Scaffold(
           body: SafeArea(
-            child: Column(
-              children: [
-                if (!tab.atHome)
-                  BrowserAddressBar(
-                    controller: address,
-                    focusNode: addressFocus,
-                    url: tab.url,
-                    onHome: browser.home,
-                    onSubmit: _open,
-                    onMenuSelected: _overflowAction,
-                    onTabs: _showTabs,
-                    tabCount: browser.tabs.length,
-                  ),
-                if (!tab.atHome && tab.loading)
-                  LinearProgressIndicator(value: tab.progress, minHeight: 2),
-                if (!tab.atHome && tab.failed)
-                  Container(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.wifi_off_rounded, size: 18),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'Could not load this page. Check your connection and try again.',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => browser.page('reload'),
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ExcludeSemantics(
-                        excluding: tab.atHome || tab.failed,
-                        child: IndexedStack(
-                          index: browser.selected,
-                          children: browser.tabs
-                              .map(
-                                (item) => NativeBrowserSurface(
-                                  key: ValueKey(item.id),
-                                  browser: browser,
-                                  tab: item,
-                                ),
-                              )
-                              .toList(),
-                        ),
+            child: LayoutBuilder(
+              builder: (context, viewport) => Column(
+                children: [
+                  if (!tab.atHome)
+                    SlidingAddressBar(
+                      key: crockAddressBarKey,
+                      visibility: _addressMotion,
+                      child: BrowserAddressBar(
+                        key: _addressContentKey,
+                        controller: address,
+                        focusNode: addressFocus,
+                        url: tab.url,
+                        onHome: browser.home,
+                        onSubmit: _open,
+                        onMenuSelected: _overflowAction,
+                        onTabs: _showTabs,
+                        tabCount: browser.tabs.length,
                       ),
-                      if (tab.failed && !tab.atHome)
-                        ColoredBox(
-                          color: Theme.of(context).colorScheme.surface,
-                          child: SizedBox.expand(
-                            child: CrockEmpty(
-                              title: 'This page could not be reached',
-                              detail: 'Check the address and your connection, then tap Retry above.',
+                    ),
+                  if (!tab.atHome && tab.loading)
+                    LinearProgressIndicator(value: tab.progress, minHeight: 2),
+                  if (!tab.atHome && tab.failed)
+                    Container(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.wifi_off_rounded, size: 18),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Could not load this page. Check your connection and try again.',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => browser.page('reload'),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        StableBrowserViewport(
+                          height:
+                              !tab.atHome &&
+                                  store.setting('addressBarMode', 'static') ==
+                                      'dynamic'
+                              ? viewport.maxHeight
+                              : null,
+                          child: ExcludeSemantics(
+                            excluding: tab.atHome || tab.failed,
+                            child: IndexedStack(
+                              index: browser.selected,
+                              children: browser.tabs
+                                  .map(
+                                    (item) => NativeBrowserSurface(
+                                      key: ValueKey(item.id),
+                                      browser: browser,
+                                      tab: item,
+                                    ),
+                                  )
+                                  .toList(),
                             ),
                           ),
                         ),
-                      if (tab.atHome)
-                        HomeScreen(
-                          store: store,
-                          privateMode: browser.privateMode,
-                          onSearch: _open,
-                          onTool: _tool,
-                          onShortcut: (site) => _open(site['url'] as String),
-                          onEditShortcut: (site) => editShortcut(
-                            context,
-                            store,
-                            site.isEmpty ? null : site,
+                        if (tab.failed && !tab.atHome)
+                          ColoredBox(
+                            color: Theme.of(context).colorScheme.surface,
+                            child: SizedBox.expand(
+                              child: CrockEmpty(
+                                title: 'This page could not be reached',
+                                detail: 'Check the address and your connection, then tap Retry above.',
+                              ),
+                            ),
                           ),
-                        ),
-                      if (tab.atHome &&
-                          MediaQuery.viewInsetsOf(context).bottom == 0)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: _navigation(),
-                        ),
-                    ],
+                        if (tab.atHome)
+                          HomeScreen(
+                            store: store,
+                            privateMode: browser.privateMode,
+                            onSearch: _open,
+                            onTool: _tool,
+                            onShortcut: (site) => _open(site['url'] as String),
+                            onEditShortcut: (site) => editShortcut(
+                              context,
+                              store,
+                              site.isEmpty ? null : site,
+                            ),
+                          ),
+                        if (tab.atHome &&
+                            MediaQuery.viewInsetsOf(context).bottom == 0)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: _navigation(),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -295,8 +397,10 @@ class _BrowserShellState extends State<BrowserShell>
   );
   Widget _navigation() => TweenAnimationBuilder<double>(
     tween: Tween(begin: 0, end: 1),
-    duration: const Duration(milliseconds: 520),
-    curve: Curves.easeOutBack,
+    duration: Duration(
+      milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 280,
+    ),
+    curve: Curves.easeOutCubic,
     builder: (context, progress, child) => Transform.translate(
       offset: Offset(0, 24 * (1 - progress)),
       child: Transform.scale(scale: .96 + .04 * progress, child: child),
@@ -405,6 +509,7 @@ class _BrowserShellState extends State<BrowserShell>
     downloads.dispose();
     address.dispose();
     addressFocus.dispose();
+    _addressMotion.dispose();
     super.dispose();
   }
 }

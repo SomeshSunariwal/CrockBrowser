@@ -10,12 +10,15 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.view.ContextThemeWrapper;
+import android.view.MotionEvent;
 import android.view.PixelCopy;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.webkit.*;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.webkit.WebSettingsCompat;
+import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.example.crocbrowser.browser.credentials.LoginCapture;
 import com.example.crocbrowser.core.HostChannel;
@@ -37,6 +40,9 @@ public final class BrowserView implements PlatformView {
   private final MethodChannel channel;
   private final Set<String> media = java.util.concurrent.ConcurrentHashMap.newKeySet();
   private boolean failed = false, blockAds = false, disposed = false, darkTheme = false;
+  private boolean active = true;
+  private boolean touching = false, draggingPage = false;
+  private float touchX, touchY;
   private String normalAgent, lastTitle = "";
   private static final String[] AD_HOSTS = {
     "doubleclick.net",
@@ -65,6 +71,9 @@ public final class BrowserView implements PlatformView {
                 ? com.example.crocbrowser.R.style.BrowserWebViewDarkTheme
                 : com.example.crocbrowser.R.style.BrowserWebViewLightTheme);
     view = new WebView(webContext);
+    active = Boolean.TRUE.equals(args.get("active"));
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.MUTE_AUDIO))
+      WebViewCompat.setAudioMuted(view, !active);
     refreshLayout = new SwipeRefreshLayout(host.activity);
     refreshLayout.setColorSchemeResources(android.R.color.holo_blue_dark);
     refreshLayout.addView(
@@ -130,6 +139,7 @@ public final class BrowserView implements PlatformView {
 
           @Override
           public void onPageStarted(WebView v, String url, Bitmap icon) {
+            draggingPage = false;
             loginCapture.started(url);
             failed = false;
             media.clear();
@@ -142,6 +152,8 @@ public final class BrowserView implements PlatformView {
             state(100);
             host.applyHiddenElements(view);
             loginCapture.finished();
+            applyMediaActivity();
+            emitScroll(0, "page");
           }
 
           @Override
@@ -285,10 +297,37 @@ public final class BrowserView implements PlatformView {
                   "type", "context", "view", id, "url", hit.getExtra(), "kind", hit.getType()));
           return true;
         });
+    // Flutter observes drag distance in stable screen coordinates. Native scroll
+    // events supply viewport metadata and inertia after the finger is released.
+    view.setOnTouchListener(
+        (v, event) -> {
+          float y = event.getRawY();
+          switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+              touching = true;
+              draggingPage = false;
+              touchX = event.getRawX();
+              touchY = y;
+              break;
+            case MotionEvent.ACTION_MOVE:
+              float distance = touchY - y;
+              if (!draggingPage
+                  && Math.abs(distance) > ViewConfiguration.get(v.getContext()).getScaledTouchSlop()
+                  && Math.abs(distance) > Math.abs(event.getRawX() - touchX)) draggingPage = true;
+              break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+              touching = false;
+              break;
+            default:
+              break;
+          }
+          return false;
+        });
     view.setOnScrollChangeListener(
         (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-          if (scrollX != oldScrollX || scrollY != oldScrollY)
-            host.emit(JsonCodec.map("type", "scroll", "view", id));
+          int delta = scrollY - oldScrollY;
+          emitScroll(delta, !touching && draggingPage ? "fling" : "page");
         });
     channel = new MethodChannel(host.messenger, "croc/webview/" + id);
     channel.setMethodCallHandler(
@@ -299,6 +338,10 @@ public final class BrowserView implements PlatformView {
                     ? (Map<String, Object>) call.arguments
                     : new HashMap<>();
             switch (call.method) {
+              case "setActive":
+                setActive(Boolean.TRUE.equals(data.get("active")));
+                result.success(null);
+                break;
               case "load":
                 load(JsonCodec.string(data, "url", ""));
                 result.success(null);
@@ -410,6 +453,51 @@ public final class BrowserView implements PlatformView {
         });
     String url = JsonCodec.string(args, "url", "");
     if (!url.isEmpty()) load(url);
+  }
+
+  private void emitScroll(float delta, String source) {
+    float density = view.getResources().getDisplayMetrics().density;
+    host.emit(
+        JsonCodec.map(
+            "type",
+            "scroll",
+            "view",
+            id,
+            "y",
+            view.getScrollY() / density,
+            "deltaY",
+            delta / density,
+            "source",
+            source,
+            "canScroll",
+            view.canScrollVertically(1) || view.canScrollVertically(-1)));
+  }
+
+  private void setActive(boolean next) {
+    if (disposed) return;
+    active = next;
+    // Muting also covers cross-origin players and WebAudio that DOM queries cannot reach.
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.MUTE_AUDIO))
+      WebViewCompat.setAudioMuted(view, !active);
+    if (active) view.onResume();
+    applyMediaActivity();
+    if (!active) view.onPause();
+  }
+
+  private void applyMediaActivity() {
+    if (disposed) return;
+    view.evaluateJavascript(
+        "(()=>{const update=w=>{try{w.__crockMediaActive="
+            + active
+            + ";"
+            + "if(!w.__crockMediaGuard){w.__crockMediaGuard=true;"
+            + "w.document.addEventListener('play',e=>{if(w.__crockMediaActive===false"
+            + "&&e.target.pause)e.target.pause();},true);}"
+            + "if(!w.__crockMediaActive)w.document.querySelectorAll('video,audio')"
+            + ".forEach(m=>m.pause());"
+            + "for(let i=0;i<w.frames.length;i++)update(w.frames[i]);}catch(_){}};"
+            + "update(window);})()",
+        null);
   }
 
   private void configure(Map<String, Object> args) {

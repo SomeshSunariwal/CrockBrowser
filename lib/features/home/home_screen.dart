@@ -24,7 +24,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final privateBackground = Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF201D32)
+        ? colors.surfaceContainerLow
         : const Color(0xFFECE9FA);
     final tools = [
       ('Downloads', Icons.download_rounded, 'downloads', CrockTheme.blue),
@@ -63,21 +63,27 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      if (privateMode)
-                        const Chip(
-                          avatar: Icon(Icons.visibility_off_outlined, size: 17),
-                          label: Text('Private session'),
-                        )
-                      else
-                        Text(
-                          'YOUR WINDOW TO THE WEB',
-                          style: TextStyle(
-                            fontSize: 10,
-                            letterSpacing: 2,
-                            color: colors.onSurfaceVariant,
-                          ),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: privateMode
+                              ? const Chip(
+                                  avatar: Icon(
+                                    Icons.visibility_off_outlined,
+                                    size: 17,
+                                  ),
+                                  label: Text('Private session'),
+                                )
+                              : Text(
+                                  'YOUR WINDOW TO THE WEB',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    letterSpacing: 2,
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                ),
                         ),
-                      const Spacer(),
+                      ),
                       IconButton(
                         tooltip: 'Scan QR code',
                         onPressed: () => onTool('qr'),

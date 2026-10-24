@@ -130,33 +130,72 @@ class AppearancePanel extends StatelessWidget {
     return Column(
       children: [
         SettingsRow(
+          icon: Icons.web_asset_rounded,
+          title: 'Address Bar',
+          subtitle: 'Keep visible or hide while scrolling down',
+          trailing: SizedBox(
+            width: 112,
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: store.setting('addressBarMode', 'static') == 'dynamic'
+                    ? 'dynamic'
+                    : 'static',
+                isDense: true,
+                isExpanded: true,
+                style: Theme.of(context).textTheme.bodyMedium,
+                borderRadius: BorderRadius.circular(14),
+                items: const [
+                  DropdownMenuItem(value: 'static', child: Text('Static')),
+                  DropdownMenuItem(value: 'dynamic', child: Text('Dynamic')),
+                ],
+                onChanged: (value) {
+                  if (value != null) store.setSetting('addressBarMode', value);
+                },
+              ),
+            ),
+          ),
+        ),
+        const Divider(indent: 18, endIndent: 18),
+        SettingsRow(
           icon: Icons.dark_mode_outlined,
           title: 'Theme',
           subtitle: 'Choose how the browser looks',
-          trailing: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: const {'system', 'dark', 'light'}.contains(savedTheme)
-                  ? savedTheme
-                  : 'system',
-              isDense: true,
-              borderRadius: BorderRadius.circular(14),
-              items: const [
-                DropdownMenuItem(value: 'system', child: Text('System Driven')),
-                DropdownMenuItem(value: 'dark', child: Text('Dark')),
-                DropdownMenuItem(value: 'light', child: Text('Light')),
-              ],
-              onChanged: (value) async {
-                if (value == null) return;
-                store.setSetting('themeMode', value);
-                store.setSetting('darkTheme', value == 'dark');
-                await browser.updateSettings();
-              },
+          trailing: SizedBox(
+            width: 144,
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: const {'system', 'dark', 'light'}.contains(savedTheme)
+                    ? savedTheme
+                    : 'system',
+                isDense: true,
+                isExpanded: true,
+                style: Theme.of(context).textTheme.bodyMedium,
+                borderRadius: BorderRadius.circular(14),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'system',
+                    child: Text(
+                      'System Driven',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  DropdownMenuItem(value: 'dark', child: Text('Dark')),
+                  DropdownMenuItem(value: 'light', child: Text('Light')),
+                ],
+                onChanged: (value) async {
+                  if (value == null) return;
+                  store.setSetting('themeMode', value);
+                  store.setSetting('darkTheme', value == 'dark');
+                  await browser.updateSettings();
+                },
+              ),
             ),
           ),
         ),
         const Divider(indent: 18, endIndent: 18),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
             children: [
               Row(
@@ -240,7 +279,7 @@ class AppearancePanel extends StatelessWidget {
         ),
         const Divider(indent: 18, endIndent: 18),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Column(
             children: [
               Row(

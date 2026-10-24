@@ -6,6 +6,7 @@ import 'core/storage/browser_store.dart';
 import 'core/theme/crock_theme.dart';
 import 'features/browser/browser_shell.dart';
 import 'shared/widgets/crock_logo.dart';
+import 'shared/widgets/crock_notification.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,6 +69,7 @@ class CrockApp extends StatelessWidget {
       return MaterialApp(
         title: 'Crock Browser',
         debugShowCheckedModeBanner: false,
+        builder: (context, child) => CrockNotificationHost(child: child!),
         theme: CrockTheme.light,
         darkTheme: CrockTheme.dark,
         themeMode: themeMode,

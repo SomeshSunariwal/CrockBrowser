@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/crock_theme.dart';
+import '../../../shared/widgets/crock_notification.dart';
 
 class BrowserAddressBar extends StatelessWidget {
   const BrowserAddressBar({
@@ -119,7 +120,12 @@ class BrowserAddressBar extends StatelessWidget {
               iconSize: 22,
               position: PopupMenuPosition.under,
               offset: const Offset(0, 6),
-              onSelected: onMenuSelected,
+              onOpened: () => crockNotificationObscured.value = true,
+              onCanceled: () => crockNotificationObscured.value = false,
+              onSelected: (value) {
+                crockNotificationObscured.value = false;
+                onMenuSelected(value);
+              },
               itemBuilder: (context) => const [
                 PopupMenuItem(
                   value: 'back',

@@ -2,7 +2,10 @@ package com.example.crocbrowser.downloads;
 
 import com.example.crocbrowser.core.JsonCodec;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 public final class DownloadTask {
@@ -21,6 +24,7 @@ public final class DownloadTask {
   public int attempts = 0;
   public volatile boolean stop = false;
   public transient volatile java.net.HttpURLConnection connection;
+  private final List<List<Double>> speedHistory = new ArrayList<>();
 
   public DownloadTask(JSONObject json) {
     id = json.optString("id");
@@ -40,6 +44,39 @@ public final class DownloadTask {
     total = json.optLong("total", -1);
     created = json.optLong("created", created);
     attempts = json.optInt("attempts");
+    JSONArray history = json.optJSONArray("speedHistory");
+    if (history != null)
+      for (int i = 0; i < history.length(); i++) {
+        JSONArray sample = history.optJSONArray(i);
+        if (sample != null && sample.length() == 2)
+          speedHistory.add(ArraysAsSample(sample.optDouble(0), sample.optDouble(1)));
+      }
+  }
+
+  private static List<Double> ArraysAsSample(double progress, double rate) {
+    return java.util.Arrays.asList(progress, rate);
+  }
+
+  public synchronized List<List<Double>> graphHistory() {
+    if (total > 0) {
+      double progress = Math.max(0, Math.min(1, (double) bytes / total));
+      if (!speedHistory.isEmpty() && progress < speedHistory.get(speedHistory.size() - 1).get(0))
+        speedHistory.clear();
+      double rate = Math.max(0, speed);
+      if (!state.equals("running") && !speedHistory.isEmpty())
+        rate = speedHistory.get(speedHistory.size() - 1).get(1);
+      if (speedHistory.isEmpty()) speedHistory.add(ArraysAsSample(0, rate));
+      if (progress > 0) {
+        List<Double> point = ArraysAsSample(progress, rate);
+        int count = speedHistory.size();
+        if (count > 1 && progress - speedHistory.get(count - 2).get(0) < .005)
+          speedHistory.set(count - 1, point);
+        else speedHistory.add(point);
+      }
+    }
+    List<List<Double>> copy = new ArrayList<>();
+    for (List<Double> point : speedHistory) copy.add(new ArrayList<>(point));
+    return copy;
   }
 
   public JSONObject json() {
@@ -76,7 +113,9 @@ public final class DownloadTask {
             "created",
             created,
             "attempts",
-            attempts));
+            attempts,
+            "speedHistory",
+            graphHistory()));
   }
 
   public Map<String, Object> publicMap() {
@@ -106,7 +145,9 @@ public final class DownloadTask {
         "stream",
         stream(),
         "torrent",
-        torrent());
+        torrent(),
+        "speedHistory",
+        graphHistory());
   }
 
   public File partial(File root) {
