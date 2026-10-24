@@ -87,8 +87,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 Text(
                   Uri.tryParse(widget.article['url'] as String? ?? '')?.host ??
                       '',
-                  style: const TextStyle(
-                    color: Color(0xFF8796A6),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),
@@ -99,7 +99,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                     fontSize:
                         18 * (widget.store.setting('font', 100) as num) / 100,
                     height: 1.8,
-                    color: const Color(0xFF34414E),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ],

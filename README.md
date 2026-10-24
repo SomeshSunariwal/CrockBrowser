@@ -37,8 +37,6 @@ android/app/src/main/java/com/example/crocbrowser/
 assets/branding/crock_logo.png    Original supplied artwork
 ```
 
-The earlier Java/XML implementation is preserved under `analysis/legacy-java-reference/` as inspection material. It is excluded from the application, Dart analysis and the IDE source module. Decompiled UC code and APK binaries are never linked into this app.
-
 ## Build and checks
 
 With Flutter on PATH:
@@ -55,7 +53,7 @@ This machine also has a helper for the local SDK and Windows Java temporary-dire
 .\tools\flutter-command.ps1 build apk --debug
 ```
 
-Debug APK: `build/app/outputs/flutter-apk/app-debug.apk`. Android Studio can run the same root project. Release publication needs a production application ID and signing key. No automated test cases have been added or run, as requested.
+Android Studio can run the same root project. A local sideload build is available at `dist/CrockBrowser-sideload.apk`; it is signed with the development key and is not for store publication. A production release needs a unique application ID and production signing key. No automated test cases have been added or run, as requested.
 
 ## Features and limits
 
@@ -64,8 +62,6 @@ See [implementation status](docs/FEATURE_STATUS.md) for implemented behavior and
 Local metadata and Private Space use Android Keystore encryption. Private browsing has a separate process/WebView profile and does not save tabs/history. Private file import makes an encrypted copy; the source file remains until explicitly deleted. Opening a private file in another application shares a temporary decrypted copy with that chosen app.
 
 No UC advertising, analytics, accounts, cloud backup, VPN, AI or content-feed services were copied. Android WebView and optional ML Kit translation have their own platform/provider behavior; this is not a claim of anonymity or zero network telemetry.
-
-Reference documents: [UC feature inventory](docs/UC_FEATURE_SELECTION.md), [APK/trackers/ownership audit](docs/APK_AUDIT.md), and [original Java UI reference](docs/UI_REFERENCE.html).
 
 Home layout: two rows of four bookmark-shortcut slots, including Add site; Manage opens all shortcuts. Recently visited shows real local history grouped by host and is omitted in private mode. Archive extraction supports ZIP, RAR/RAR5 and 7z, including RAR/7z password entry.
 

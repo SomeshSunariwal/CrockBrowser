@@ -9,4 +9,10 @@
 <item name="android:windowBackground">#F5F8FC</item>
 <item name="android:windowLightStatusBar">true</item>
 </style>
+<style name="BrowserWebViewLightTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+<item name="android:isLightTheme">true</item>
+</style>
+<style name="BrowserWebViewDarkTheme" parent="@android:style/Theme.Material.NoActionBar">
+<item name="android:isLightTheme">false</item>
+</style>
 </resources>

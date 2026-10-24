@@ -3,12 +3,9 @@ package com.example.crocbrowser.downloads;
 import android.app.*;
 import android.content.*;
 import android.content.pm.ServiceInfo;
-import android.graphics.BitmapFactory;
 import android.net.*;
 import android.os.*;
 import android.provider.DocumentsContract;
-import com.example.crocbrowser.MainActivity;
-import com.example.crocbrowser.R;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -19,23 +16,31 @@ import org.json.JSONObject;
 public final class DownloadService extends Service {
   public static final String EVENT = "com.example.crocbrowser.DOWNLOADS_CHANGED";
   private DownloadRepository repository;
+  private DownloadNotifications notifications;
   private final List<DownloadTask> tasks = new ArrayList<>();
   private final Set<String> running = new HashSet<>();
   private final ExecutorService workers = Executors.newFixedThreadPool(6);
   private final Handler main = new Handler(Looper.getMainLooper());
   private int concurrency = 3;
   private boolean wifiOnly = false, closed = false;
+  private boolean stopping = false;
   private long lastNotification;
+  private long lastCheckpoint;
   private final Runnable tick =
       new Runnable() {
         public void run() {
           if (closed) return;
           synchronized (DownloadService.this) {
-            persist();
+            if (SystemClock.elapsedRealtime() - lastCheckpoint >= 1000) {
+              persist();
+              lastCheckpoint = SystemClock.elapsedRealtime();
+            } else {
+              broadcast("");
+            }
             pump();
             notifyProgress();
           }
-          main.postDelayed(this, 1000);
+          if (!closed && !stopping) main.postDelayed(this, 100);
         }
       };
 
@@ -43,10 +48,7 @@ public final class DownloadService extends Service {
   public void onCreate() {
     super.onCreate();
     repository = new DownloadRepository(this);
-    getSystemService(NotificationManager.class)
-        .createNotificationChannel(
-            new NotificationChannel(
-                "croc_downloads", "Crock downloads", NotificationManager.IMPORTANCE_LOW));
+    notifications = new DownloadNotifications(this);
     try {
       tasks.addAll(repository.load());
       for (DownloadTask task : tasks) {
@@ -60,11 +62,11 @@ public final class DownloadService extends Service {
     concurrency = getSharedPreferences("transfer_options", 0).getInt("concurrency", 3);
     wifiOnly = getSharedPreferences("transfer_options", 0).getBoolean("wifiOnly", false);
     startForeground(714, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
-    main.post(tick);
   }
 
   @Override
   public synchronized int onStartCommand(Intent intent, int flags, int startId) {
+    stopping = false;
     if (intent != null)
       try {
         String action = intent.getStringExtra("action"), id = intent.getStringExtra("id");
@@ -90,6 +92,12 @@ public final class DownloadService extends Service {
           json.put("name", name.substring(0, Math.min(160, name.length())))
               .put("id", UUID.randomUUID().toString());
           tasks.add(0, new DownloadTask(json));
+          repository.save(tasks);
+          sendBroadcast(
+              new Intent(EVENT)
+                  .setPackage(getPackageName())
+                  .putExtra("requestId", json.optString("requestId"))
+                  .putExtra("error", ""));
         } else if ("settings".equals(action)) {
           concurrency = Math.max(1, Math.min(6, intent.getIntExtra("concurrency", 3)));
           wifiOnly = intent.getBooleanExtra("wifiOnly", false);
@@ -124,10 +132,24 @@ public final class DownloadService extends Service {
             }
         }
       } catch (Exception error) {
-        broadcast("Could not update downloads: " + error.getMessage());
+        String message = "Could not update downloads: " + error.getMessage();
+        broadcast(message);
+        try {
+          JSONObject request = new JSONObject(intent.getStringExtra("request"));
+          sendBroadcast(
+              new Intent(EVENT)
+                  .setPackage(getPackageName())
+                  .putExtra("requestId", request.optString("requestId"))
+                  .putExtra("error", message));
+        } catch (Exception ignored) {
+        }
       }
     persist();
     pump();
+    main.removeCallbacks(tick);
+    if (!running.isEmpty()
+        || tasks.stream().anyMatch(t -> t.state.equals("queued") || t.state.equals("retrying")))
+      main.postDelayed(tick, 100);
     return START_STICKY;
   }
 
@@ -154,7 +176,9 @@ public final class DownloadService extends Service {
     if (running.isEmpty()
         && tasks.stream().noneMatch(t -> t.state.equals("queued") || t.state.equals("retrying"))) {
       main.removeCallbacks(tick);
-      stopForeground(STOP_FOREGROUND_REMOVE);
+      stopping = true;
+      stopForeground(STOP_FOREGROUND_DETACH);
+      notifications.update(tasks, false);
       stopSelf();
     }
   }
@@ -269,7 +293,7 @@ public final class DownloadService extends Service {
             output.write(buffer, 0, read);
             task.bytes += read;
             long now = SystemClock.elapsedRealtime();
-            if (now - sample >= 500) {
+            if (now - sample >= 100) {
               task.speed = (task.bytes - sampleBytes) * 1000 / (now - sample);
               sample = now;
               sampleBytes = task.bytes;
@@ -373,40 +397,29 @@ public final class DownloadService extends Service {
     try {
       repository.save(tasks);
       broadcast("");
+      if (notifications != null) notifications.update(tasks, !closed && !stopping);
     } catch (Exception error) {
       broadcast("Download storage error: " + error.getMessage());
     }
   }
 
   private void broadcast(String error) {
-    sendBroadcast(new Intent(EVENT).setPackage(getPackageName()).putExtra("error", error));
+    org.json.JSONArray rows = new org.json.JSONArray();
+    for (DownloadTask task : tasks) rows.put(new JSONObject(task.publicMap()));
+    sendBroadcast(
+        new Intent(EVENT)
+            .setPackage(getPackageName())
+            .putExtra("error", error)
+            .putExtra("tasks", rows.toString()));
   }
 
   private Notification notification() {
-    long active = tasks.stream().filter(t -> t.state.equals("running")).count();
-    long queued =
-        tasks.stream().filter(t -> t.state.equals("queued") || t.state.equals("retrying")).count();
-    PendingIntent open =
-        PendingIntent.getActivity(
-            this,
-            0,
-            new Intent(this, MainActivity.class).putExtra("openDownloads", true),
-            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-    Notification.Builder builder =
-        new Notification.Builder(this, "croc_downloads")
-            .setSmallIcon(R.drawable.ic_notification_crock)
-            .setLargeIcon(BitmapFactory.decodeResource(getResources(), R.drawable.crock_logo))
-            .setContentTitle("Crock Browser downloads")
-            .setContentText(active + " active · " + queued + " queued")
-            .setContentIntent(open)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true);
-    return builder.build();
+    return notifications.summary(tasks, true);
   }
 
   private void notifyProgress() {
     if (SystemClock.elapsedRealtime() - lastNotification > 900) {
-      getSystemService(NotificationManager.class).notify(714, notification());
+      notifications.update(tasks, !closed && !stopping);
       lastNotification = SystemClock.elapsedRealtime();
     }
   }
@@ -423,7 +436,9 @@ public final class DownloadService extends Service {
         }
       persist();
     }
-    stopForeground(STOP_FOREGROUND_REMOVE);
+    stopping = true;
+    stopForeground(STOP_FOREGROUND_DETACH);
+    notifications.update(tasks, false);
     stopSelf();
   }
 

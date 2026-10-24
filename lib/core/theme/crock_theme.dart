@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 
 abstract final class CrockTheme {
   static const blue = Color(0xFF087CFA);
@@ -8,46 +9,106 @@ abstract final class CrockTheme {
   static const line = Color(0xFFE9EEF5);
   static const background = Color(0xFFF5F8FC);
 
-  static ThemeData get light {
-    final scheme = ColorScheme.fromSeed(seedColor: blue).copyWith(
-      primary: blue,
-      onPrimary: Colors.white,
-      primaryContainer: const Color(0xFFEAF3FF),
-      onPrimaryContainer: const Color(0xFF075BB9),
-      secondary: cyan,
-      surface: Colors.white,
-      onSurface: ink,
-      onSurfaceVariant: muted,
-      outlineVariant: line,
+  static Color inkOf(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurface;
+  static Color mutedOf(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurfaceVariant;
+  static Color lineOf(BuildContext context) =>
+      Theme.of(context).colorScheme.outlineVariant;
+  static Color surfaceOf(BuildContext context) =>
+      Theme.of(context).colorScheme.surface;
+  static Color subtleSurfaceOf(BuildContext context) =>
+      Theme.of(context).colorScheme.surfaceContainerLow;
+
+  static ThemeData get light => _build(dark: false);
+  static ThemeData get dark => _build(dark: true);
+
+  static ThemeData _build({required bool dark}) {
+    const darkInk = Color(0xFFF2F2F2);
+    const darkMuted = Color(0xFFBDBDBD);
+    const darkLine = Color(0xFF484848);
+    const darkSurface = Color(0xFF292929);
+    const darkBackground = Color(0xFF292929);
+    const darkSubtle = Color(0xFF333333);
+    final foreground = dark ? darkInk : ink;
+    final mutedForeground = dark ? darkMuted : muted;
+    final lineColor = dark ? darkLine : line;
+    final surfaceColor = dark ? darkSurface : Colors.white;
+    final backgroundColor = dark ? darkBackground : background;
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: blue,
+          brightness: dark ? Brightness.dark : Brightness.light,
+        ).copyWith(
+          primary: dark ? const Color(0xFF75B5FF) : blue,
+          onPrimary: dark ? const Color(0xFF10243B) : Colors.white,
+          primaryContainer: dark
+              ? const Color(0xFF153A63)
+              : const Color(0xFFEAF3FF),
+          onPrimaryContainer: dark
+              ? const Color(0xFFD2E5FF)
+              : const Color(0xFF075BB9),
+          secondary: cyan,
+          surface: surfaceColor,
+          onSurface: foreground,
+          onSurfaceVariant: mutedForeground,
+          surfaceDim: dark ? const Color(0xFF242424) : null,
+          surfaceBright: dark ? const Color(0xFF454545) : null,
+          surfaceContainerLowest: dark ? const Color(0xFF222222) : null,
+          surfaceContainerLow: dark ? darkSubtle : null,
+          surfaceContainer: dark ? const Color(0xFF363636) : null,
+          surfaceContainerHigh: dark ? const Color(0xFF3D3D3D) : null,
+          surfaceContainerHighest: dark ? const Color(0xFF454545) : null,
+          outline: dark ? const Color(0xFF919191) : null,
+          outlineVariant: lineColor,
+          inverseSurface: dark ? const Color(0xFFE6E6E6) : null,
+          onInverseSurface: dark ? darkBackground : null,
+          surfaceTint: dark ? Colors.transparent : null,
+        );
+    final base = ThemeData(
+      useMaterial3: true,
+      brightness: dark ? Brightness.dark : Brightness.light,
+      colorScheme: scheme,
     );
-    final base = ThemeData(useMaterial3: true, colorScheme: scheme);
     return base.copyWith(
-      scaffoldBackgroundColor: background,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+      scaffoldBackgroundColor: backgroundColor,
       textTheme: base.textTheme
-          .apply(bodyColor: ink, displayColor: ink)
+          .apply(bodyColor: foreground, displayColor: foreground)
           .copyWith(
             titleLarge: const TextStyle(
-              color: ink,
               fontSize: 23,
               fontWeight: FontWeight.w700,
               letterSpacing: -.5,
-            ),
+            ).copyWith(color: foreground),
             titleMedium: const TextStyle(
-              color: ink,
               fontSize: 15,
               fontWeight: FontWeight.w600,
               height: 1.3,
+            ).copyWith(color: foreground),
+            bodyMedium: TextStyle(
+              color: foreground,
+              fontSize: 14,
+              height: 1.45,
             ),
-            bodyMedium: const TextStyle(color: ink, fontSize: 14, height: 1.45),
-            bodySmall: const TextStyle(fontSize: 12, height: 1.4, color: muted),
+            bodySmall: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: mutedForeground,
+            ),
           ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: background,
-        foregroundColor: ink,
+      appBarTheme: AppBarTheme(
+        backgroundColor: backgroundColor,
+        foregroundColor: foreground,
         titleTextStyle: TextStyle(
           fontSize: 23,
           fontWeight: FontWeight.w700,
-          color: ink,
+          color: foreground,
           letterSpacing: -.5,
         ),
         centerTitle: false,
@@ -56,12 +117,12 @@ abstract final class CrockTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF1F5FA),
+        fillColor: dark ? darkSubtle : const Color(0xFFF1F5FA),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,
           vertical: 16,
         ),
-        hintStyle: const TextStyle(color: muted, fontSize: 14),
+        hintStyle: TextStyle(color: mutedForeground, fontSize: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
@@ -78,17 +139,17 @@ abstract final class CrockTheme {
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
         elevation: 0,
-        color: Colors.white,
+        color: surfaceColor,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: line),
+          side: BorderSide(color: lineColor),
         ),
       ),
-      dividerTheme: const DividerThemeData(color: line, thickness: 1, space: 1),
+      dividerTheme: DividerThemeData(color: lineColor, thickness: 1, space: 1),
       sliderTheme: base.sliderTheme.copyWith(
         activeTrackColor: blue,
-        inactiveTrackColor: const Color(0xFFE5ECF5),
+        inactiveTrackColor: dark ? darkLine : const Color(0xFFE5ECF5),
         thumbColor: blue,
         overlayColor: blue.withValues(alpha: .08),
         trackHeight: 5,
@@ -101,6 +162,8 @@ abstract final class CrockTheme {
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
               ? blue
+              : dark
+              ? darkLine
               : const Color(0xFFEBF0F6),
         ),
         trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
@@ -121,28 +184,29 @@ abstract final class CrockTheme {
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: surfaceColor,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.white,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surfaceColor,
         surfaceTintColor: Colors.transparent,
         showDragHandle: true,
-        dragHandleColor: Color(0xFFD4DDE8),
+        dragHandleColor: dark ? darkLine : const Color(0xFFD4DDE8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: Colors.white,
+        color: surfaceColor,
         surfaceTintColor: Colors.transparent,
         elevation: 6,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: ink,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: TextStyle(color: scheme.onInverseSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );

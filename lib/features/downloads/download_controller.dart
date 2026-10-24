@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
@@ -8,8 +9,23 @@ class DownloadController extends ChangeNotifier {
   DownloadController() {
     _events = NativeBridge.instance.events.listen((event) {
       if (event['type'] == 'downloads') {
-        lastError = event['error'] as String?;
-        refresh();
+        final error = (event['error'] as String?)?.trim();
+        lastError = error == null || error.isEmpty ? null : error;
+        final pending = _pendingAdds.remove(event['requestId']);
+        if (pending != null) {
+          pending.complete(lastError?.isNotEmpty == true ? lastError : null);
+        }
+        final snapshot = event['tasksJson'];
+        if (snapshot is String) {
+          _snapshotVersion++;
+          tasks = (jsonDecode(snapshot) as List)
+              .map((row) => Map<String, dynamic>.from(row as Map))
+              .toList();
+          loading = false;
+          notifyListeners();
+        } else {
+          refresh();
+        }
       }
     });
     refresh();
@@ -18,9 +34,13 @@ class DownloadController extends ChangeNotifier {
   String? lastError;
   bool loading = true;
   late StreamSubscription<Map<String, dynamic>> _events;
+  final Map<String, Completer<String?>> _pendingAdds = {};
+  int _snapshotVersion = 0;
   Future<void> refresh() async {
+    final version = ++_snapshotVersion;
     try {
-      tasks = await NativeBridge.instance.list('downloads.list');
+      final rows = await NativeBridge.instance.list('downloads.list');
+      if (version == _snapshotVersion) tasks = rows;
     } catch (error) {
       lastError = error.toString();
     }
@@ -36,12 +56,23 @@ class DownloadController extends ChangeNotifier {
             (uri.host.isEmpty || uri.userInfo.isNotEmpty))) {
       throw ArgumentError('Enter an HTTP, HTTPS or magnet download URL');
     }
+    final requestId = DateTime.now().microsecondsSinceEpoch.toString();
     await NativeBridge.instance.call('device.permissions', {
       'permissions': ['android.permission.POST_NOTIFICATIONS'],
     });
-    await NativeBridge.instance.call('downloads.enqueue', request);
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    await refresh();
+    final accepted = Completer<String?>();
+    _pendingAdds[requestId] = accepted;
+    try {
+      await NativeBridge.instance.call('downloads.enqueue', {
+        ...request,
+        'requestId': requestId,
+      });
+      final error = await accepted.future.timeout(const Duration(seconds: 10));
+      if (error != null) throw StateError(error);
+      await refresh();
+    } finally {
+      _pendingAdds.remove(requestId);
+    }
   }
 
   Future<void> command(String id, String action) async {

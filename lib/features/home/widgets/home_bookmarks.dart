@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/crock_theme.dart';
 import '../../../shared/widgets/site_icon.dart';
 
 class HomeBookmarks extends StatelessWidget {
@@ -19,17 +18,18 @@ class HomeBookmarks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final pinned = sites.take(7).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'Bookmarks',
                 style: TextStyle(
-                  color: CrockTheme.ink,
+                  color: colors.onSurface,
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
                 ),
@@ -46,13 +46,13 @@ class HomeBookmarks extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
-          itemCount: 8,
+          itemCount: pinned.length + 1,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 4,
             crossAxisSpacing: 8,
             mainAxisSpacing: 2,
             mainAxisExtent:
-                82 +
+                100 +
                 ((MediaQuery.textScalerOf(context).scale(11) - 11) * 2.4).clamp(
                   0,
                   100,
@@ -72,23 +72,23 @@ class HomeBookmarks extends StatelessWidget {
                 child: Column(
                   children: [
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: 56,
+                      height: 56,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: CrockTheme.line),
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(17),
+                        border: Border.all(color: colors.outlineVariant),
                       ),
                       child: add
-                          ? const Icon(
+                          ? Icon(
                               Icons.add_rounded,
-                              size: 23,
-                              color: CrockTheme.muted,
+                              size: 28,
+                              color: colors.onSurfaceVariant,
                             )
                           : SiteIcon(
                               url: site['url']?.toString() ?? '',
-                              size: 24,
+                              size: 36,
                               allowNetwork: allowIconNetwork,
                               fallbackLabel: title,
                             ),
@@ -99,8 +99,8 @@ class HomeBookmarks extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: CrockTheme.ink,
+                      style: TextStyle(
+                        color: colors.onSurface,
                         fontSize: 11,
                         height: 1.2,
                       ),

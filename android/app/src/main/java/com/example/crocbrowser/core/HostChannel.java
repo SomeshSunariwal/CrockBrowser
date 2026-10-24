@@ -45,7 +45,8 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
       new BroadcastReceiver() {
         @Override
         public void onReceive(Context c, Intent i) {
-          emit(JsonCodec.map("type", "downloads", "error", i.getStringExtra("error")));
+          emit(JsonCodec.map("type", "downloads", "error", i.getStringExtra("error"),
+              "tasksJson", i.getStringExtra("tasks"), "requestId", i.getStringExtra("requestId")));
         }
       };
 

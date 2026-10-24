@@ -6,6 +6,7 @@ import 'core/storage/browser_store.dart';
 import 'core/theme/crock_theme.dart';
 import 'features/browser/browser_shell.dart';
 import 'shared/widgets/crock_logo.dart';
+import 'shared/widgets/crock_notification.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,15 +54,32 @@ class CrockApp extends StatelessWidget {
   final BrowserStore store;
   final bool downloads;
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Crock Browser',
-    debugShowCheckedModeBanner: false,
-    theme: CrockTheme.light,
-    initialRoute: '/',
-    onGenerateRoute: (settings) => MaterialPageRoute<void>(
-      settings: settings,
-      builder: (context) =>
-          BrowserShell(store: store, openDownloads: downloads),
-    ),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: store,
+    builder: (context, _) {
+      final savedMode = store.setting(
+        'themeMode',
+        store.setting('darkTheme', false) == true ? 'dark' : 'system',
+      );
+      final themeMode = switch (savedMode) {
+        'dark' => ThemeMode.dark,
+        'light' => ThemeMode.light,
+        _ => ThemeMode.system,
+      };
+      return MaterialApp(
+        title: 'Crock Browser',
+        debugShowCheckedModeBanner: false,
+        builder: (context, child) => CrockNotificationHost(child: child!),
+        theme: CrockTheme.light,
+        darkTheme: CrockTheme.dark,
+        themeMode: themeMode,
+        initialRoute: '/',
+        onGenerateRoute: (settings) => MaterialPageRoute<void>(
+          settings: settings,
+          builder: (context) =>
+              BrowserShell(store: store, openDownloads: downloads),
+        ),
+      );
+    },
   );
 }

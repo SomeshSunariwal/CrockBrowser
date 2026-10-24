@@ -15,13 +15,13 @@ class SettingsSection extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(4, 28, 4, 12),
+        padding: const EdgeInsets.fromLTRB(4, 22, 4, 9),
         child: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: CrockTheme.muted,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -31,7 +31,7 @@ class SettingsSection extends StatelessWidget {
             for (var i = 0; i < children.length; i++) ...[
               if (i > 0)
                 const Padding(
-                  padding: EdgeInsets.only(left: 68),
+                  padding: EdgeInsets.only(left: 62),
                   child: Divider(),
                 ),
               children[i],
@@ -49,13 +49,13 @@ class SettingsIcon extends StatelessWidget {
   final Color color;
   @override
   Widget build(BuildContext context) => Container(
-    width: 38,
-    height: 38,
+    width: 34,
+    height: 34,
     decoration: BoxDecoration(
       color: color.withValues(alpha: .08),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(11),
     ),
-    child: Icon(icon, color: color, size: 21),
+    child: Icon(icon, color: color, size: 19),
   );
 }
 
@@ -74,26 +74,49 @@ class SettingsRow extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    leading: SettingsIcon(icon),
-    title: Text(title, style: Theme.of(context).textTheme.titleMedium),
-    subtitle: subtitle == null
-        ? null
-        : Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              subtitle!,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-    trailing:
-        trailing ??
-        const Icon(
-          Icons.chevron_right_rounded,
-          size: 20,
-          color: CrockTheme.muted,
-        ),
-    onTap: onTap,
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final controlBelow =
+          trailing != null &&
+          (constraints.maxWidth < 320 ||
+              MediaQuery.textScalerOf(context).scale(14) > 17);
+      return ListTile(
+        minLeadingWidth: 34,
+        horizontalTitleGap: 12,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+        leading: SettingsIcon(icon),
+        title: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        subtitle: subtitle == null && !controlBelow
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (subtitle != null)
+                      Text(
+                        subtitle!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    if (controlBelow)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: trailing!,
+                      ),
+                  ],
+                ),
+              ),
+        trailing: controlBelow
+            ? null
+            : trailing ??
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+        onTap: onTap,
+      );
+    },
   );
 }

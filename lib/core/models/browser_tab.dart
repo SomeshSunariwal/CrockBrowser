@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 class BrowserTab {
   BrowserTab({String? id, this.url = '', this.title = 'New tab'})
     : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
@@ -11,6 +13,7 @@ class BrowserTab {
   double progress = 0;
   bool canBack = false;
   bool canForward = false;
+  Uint8List? thumbnail;
   Map<String, dynamic> toMap() => {
     'id': id,
     'url': url,

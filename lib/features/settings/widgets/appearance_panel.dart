@@ -38,6 +38,7 @@ class AppearancePanel extends StatelessWidget {
 
   Future<void> _rotation(BuildContext context) async {
     final selected = browser.store.setting('rotation', 'auto');
+    final colors = Theme.of(context).colorScheme;
     final value = await showCrockSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -53,22 +54,22 @@ class AppearancePanel extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Choose the view that feels right.',
-              style: TextStyle(color: CrockTheme.muted),
+              style: TextStyle(color: colors.onSurfaceVariant),
             ),
             const SizedBox(height: 22),
             for (final choice in rotations.entries) ...[
               Material(
                 color: selected == choice.key
-                    ? const Color(0xFFF0F7FF)
-                    : Colors.white,
+                    ? colors.primaryContainer
+                    : colors.surface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
                   side: BorderSide(
                     color: selected == choice.key
                         ? CrockTheme.blue
-                        : CrockTheme.line,
+                        : colors.outlineVariant,
                   ),
                 ),
                 child: ListTile(
@@ -83,7 +84,7 @@ class AppearancePanel extends StatelessWidget {
                     choice.value.$3,
                     color: selected == choice.key
                         ? CrockTheme.blue
-                        : CrockTheme.muted,
+                        : colors.onSurfaceVariant,
                   ),
                   title: Text(
                     choice.value.$1,
@@ -99,7 +100,7 @@ class AppearancePanel extends StatelessWidget {
                         : Icons.circle_outlined,
                     color: selected == choice.key
                         ? CrockTheme.blue
-                        : CrockTheme.line,
+                        : colors.outlineVariant,
                   ),
                   onTap: () => Navigator.pop(context, choice.key),
                 ),
@@ -121,10 +122,80 @@ class AppearancePanel extends StatelessWidget {
     final font = (store.setting('font', 100) as num).clamp(70, 200).toDouble();
     final brightness = (store.setting('brightness', -1) as num).toDouble();
     final system = brightness < 0;
+    final colors = Theme.of(context).colorScheme;
+    final savedTheme = store.setting(
+      'themeMode',
+      store.setting('darkTheme', false) == true ? 'dark' : 'system',
+    ) as String;
     return Column(
       children: [
+        SettingsRow(
+          icon: Icons.web_asset_rounded,
+          title: 'Address Bar',
+          subtitle: 'Keep visible or hide while scrolling down',
+          trailing: SizedBox(
+            width: 112,
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: store.setting('addressBarMode', 'static') == 'dynamic'
+                    ? 'dynamic'
+                    : 'static',
+                isDense: true,
+                isExpanded: true,
+                style: Theme.of(context).textTheme.bodyMedium,
+                borderRadius: BorderRadius.circular(14),
+                items: const [
+                  DropdownMenuItem(value: 'static', child: Text('Static')),
+                  DropdownMenuItem(value: 'dynamic', child: Text('Dynamic')),
+                ],
+                onChanged: (value) {
+                  if (value != null) store.setSetting('addressBarMode', value);
+                },
+              ),
+            ),
+          ),
+        ),
+        const Divider(indent: 18, endIndent: 18),
+        SettingsRow(
+          icon: Icons.dark_mode_outlined,
+          title: 'Theme',
+          subtitle: 'Choose how the browser looks',
+          trailing: SizedBox(
+            width: 144,
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: const {'system', 'dark', 'light'}.contains(savedTheme)
+                    ? savedTheme
+                    : 'system',
+                isDense: true,
+                isExpanded: true,
+                style: Theme.of(context).textTheme.bodyMedium,
+                borderRadius: BorderRadius.circular(14),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'system',
+                    child: Text(
+                      'System Driven',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  DropdownMenuItem(value: 'dark', child: Text('Dark')),
+                  DropdownMenuItem(value: 'light', child: Text('Light')),
+                ],
+                onChanged: (value) async {
+                  if (value == null) return;
+                  store.setSetting('themeMode', value);
+                  store.setSetting('darkTheme', value == 'dark');
+                  await browser.updateSettings();
+                },
+              ),
+            ),
+          ),
+        ),
+        const Divider(indent: 18, endIndent: 18),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
             children: [
               Row(
@@ -137,15 +208,33 @@ class AppearancePanel extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  _value('${font.round()}%'),
+                  if (font.round() != 100) ...[
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(44, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () {
+                        store.setSetting('font', 100);
+                        browser.updateSettings();
+                      },
+                      child: const Text('Reset'),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  _value(context, '${font.round()}%'),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 9),
               Row(
                 children: [
-                  const Text(
+                  Text(
                     'A',
-                    style: TextStyle(fontSize: 13, color: CrockTheme.muted),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colors.onSurfaceVariant,
+                    ),
                   ),
                   Expanded(
                     child: Slider(
@@ -159,21 +248,21 @@ class AppearancePanel extends StatelessWidget {
                       },
                     ),
                   ),
-                  const Text(
+                  Text(
                     'A',
                     style: TextStyle(
                       fontSize: 23,
                       fontWeight: FontWeight.w600,
-                      color: CrockTheme.muted,
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF6F9FE),
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
@@ -181,7 +270,7 @@ class AppearancePanel extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14 * font / 100,
                     height: 1.5,
-                    color: CrockTheme.ink,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -190,7 +279,7 @@ class AppearancePanel extends StatelessWidget {
         ),
         const Divider(indent: 18, endIndent: 18),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Column(
             children: [
               Row(
@@ -203,16 +292,19 @@ class AppearancePanel extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  _value(system ? 'Auto' : '${(brightness * 100).round()}%'),
+                  _value(
+                    context,
+                    system ? 'Auto' : '${(brightness * 100).round()}%',
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.brightness_low_rounded,
                     size: 18,
-                    color: CrockTheme.muted,
+                    color: colors.onSurfaceVariant,
                   ),
                   Expanded(
                     child: Slider(
@@ -224,19 +316,22 @@ class AppearancePanel extends StatelessWidget {
                           : (value) => _device(context, 'brightness', value),
                     ),
                   ),
-                  const Icon(
+                  Icon(
                     Icons.brightness_high_rounded,
                     size: 22,
-                    color: CrockTheme.muted,
+                    color: colors.onSurfaceVariant,
                   ),
                 ],
               ),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Match device brightness',
-                      style: TextStyle(fontSize: 13, color: CrockTheme.muted),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   Switch(
@@ -262,10 +357,10 @@ class AppearancePanel extends StatelessWidget {
     );
   }
 
-  Widget _value(String text) => Container(
+  Widget _value(BuildContext context, String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     decoration: BoxDecoration(
-      color: const Color(0xFFEAF3FF),
+      color: Theme.of(context).colorScheme.primaryContainer,
       borderRadius: BorderRadius.circular(10),
     ),
     child: Text(

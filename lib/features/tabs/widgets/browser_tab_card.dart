@@ -22,31 +22,55 @@ class BrowserTabCard extends StatelessWidget {
       ? 'Start something new'
       : Uri.tryParse(tab.url)?.host ?? tab.url;
 
-  Widget _close() => IconButton(
+  Widget _close({bool overlay = false}) => IconButton(
     tooltip: 'Close $title tab',
     onPressed: onClose,
     padding: EdgeInsets.zero,
-    constraints: const BoxConstraints.tightFor(width: 48, height: 48),
-    icon: Container(
-      width: 30,
-      height: 30,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF0F4F9),
-        shape: BoxShape.circle,
+    constraints: BoxConstraints.tightFor(
+      width: overlay ? 40 : 48,
+      height: overlay ? 40 : 48,
+    ),
+    icon: Builder(
+      builder: (context) => Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: overlay
+              ? Theme.of(context).colorScheme.surface.withValues(alpha: .92)
+              : Theme.of(context).colorScheme.surfaceContainerLow,
+          shape: BoxShape.circle,
+          boxShadow: overlay
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .14),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Icon(
+          Icons.close_rounded,
+          size: 17,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
-      child: const Icon(Icons.close_rounded, size: 17, color: CrockTheme.muted),
     ),
   );
 
   @override
   Widget build(BuildContext context) => Material(
-    color: Colors.white,
+    color: Theme.of(context).colorScheme.surface,
+    elevation: 2,
+    shadowColor: Theme.of(context).colorScheme.shadow.withValues(alpha: .18),
     clipBehavior: Clip.antiAlias,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(22),
       side: BorderSide(
-        color: selected ? CrockTheme.blue : CrockTheme.line,
-        width: selected ? 1.5 : 1,
+        color: selected
+            ? CrockTheme.blue
+            : Theme.of(context).colorScheme.outlineVariant,
+        width: selected ? 1.0 : 1,
       ),
     ),
     child: InkWell(
@@ -55,68 +79,91 @@ class BrowserTabCard extends StatelessWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 4,
-                  ),
-                  child: Row(
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      const SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: Center(child: CrockLogo(size: 28)),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerLow,
+                                  Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: tab.thumbnail != null && !tab.atHome
+                                ? Image.memory(
+                                    tab.thumbnail!,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    alignment: Alignment.topCenter,
+                                    gaplessPlayback: true,
+                                    errorBuilder: (_, error, stackTrace) =>
+                                        const Center(
+                                          child: Icon(
+                                            Icons.public_rounded,
+                                            size: 40,
+                                            color: CrockTheme.blue,
+                                          ),
+                                        ),
+                                  )
+                                : Center(
+                                    child: tab.atHome
+                                        ? const CrockLogo(size: 48)
+                                        : const Icon(
+                                            Icons.public_rounded,
+                                            size: 40,
+                                            color: CrockTheme.blue,
+                                          ),
+                                  ),
+                          ),
+                        ),
                       ),
-                      const Spacer(),
-                      _close(),
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: _close(overlay: true),
+                      ),
                     ],
                   ),
                 ),
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFF1F8FF), Color(0xFFE8F5FC)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Center(
-                      child: tab.atHome
-                          ? const CrockLogo(size: 48)
-                          : const Icon(
-                              Icons.public_rounded,
-                              size: 40,
-                              color: CrockTheme.blue,
-                            ),
-                    ),
-                  ),
-                ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 9),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: CrockTheme.ink,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           height: 1.3,
                         ),
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 3),
                       Text(
                         host,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: CrockTheme.muted,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 11,
                         ),
                       ),
@@ -137,7 +184,7 @@ class BrowserTabCard extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),

@@ -137,7 +137,10 @@ class _DownloadSheetState extends State<_DownloadSheet> {
                               : filename.text.trim(),
                           'tree': widget.store.setting('downloadFolder', ''),
                         });
-                        if (context.mounted) dismissCrockRoute<void>(context);
+                        if (context.mounted) {
+                          crockMessage(context, 'File added to downloads');
+                          dismissCrockRoute<void>(context);
+                        }
                       } catch (error) {
                         if (context.mounted) {
                           setState(() => busy = false);
