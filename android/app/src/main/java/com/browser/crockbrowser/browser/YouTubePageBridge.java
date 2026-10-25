@@ -21,11 +21,16 @@ final class YouTubePageBridge {
           "https://youtube.com",
           "https://music.youtube.com");
   private final WebView view;
+  private final HostChannel host;
+  private final BooleanSupplier active;
+  private String preparedUrl = "";
   private long lastRequest;
   private boolean disposed;
 
   YouTubePageBridge(HostChannel host, WebView view, int id, BooleanSupplier active) {
     this.view = view;
+    this.host = host;
+    this.active = active;
     if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))
       WebViewCompat.addWebMessageListener(
           view,
@@ -47,6 +52,10 @@ final class YouTubePageBridge {
               String url = YouTubeExtractor.canonicalUrl(request.getString("url"));
               if (!url.equals(YouTubeExtractor.canonicalUrl(view.getUrl()))) return;
               if (!origin.getHost().equals(Uri.parse(view.getUrl()).getHost())) return;
+              if ("prepare".equals(request.optString("action"))) {
+                prepare(url);
+                return;
+              }
               JSONObject rect = request.optJSONObject("anchor");
               lastRequest = SystemClock.elapsedRealtime();
               host.emit(
@@ -76,6 +85,19 @@ final class YouTubePageBridge {
     }
   }
 
+  void prepare(String url) {
+    if (disposed || !active.getAsBoolean()) return;
+    try {
+      String canonical = YouTubeExtractor.canonicalUrl(url);
+      if (!canonical.equals(preparedUrl)) {
+        preparedUrl = canonical;
+        host.prepareYouTube(canonical);
+      }
+    } catch (IllegalArgumentException ignored) {
+      // Home/search/non-video pages have no qualities to prepare.
+    }
+  }
+
   void dispose() {
     disposed = true;
     if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))
@@ -87,7 +109,7 @@ final class YouTubePageBridge {
       (() => {
         if (!window.crockVideoDownload) return false;
         if (window.__crockVideoControl) { window.__crockVideoControl.refresh(); return true; }
-        let button, scheduled = false;
+        let button, scheduled = false, preparedId = '';
         const videoId = () => {
           const url = new URL(location.href);
           const id = url.pathname === '/watch' ? url.searchParams.get('v') : url.pathname.match(/^\\/(shorts|embed)\\/([^/]+)/)?.[2];
@@ -101,6 +123,11 @@ final class YouTubePageBridge {
         };
         const refresh = () => {
           scheduled = false;
+          const id = videoId();
+          if (id && id !== preparedId) {
+            preparedId = id;
+            window.crockVideoDownload.postMessage(JSON.stringify({action:'prepare',url:location.href}));
+          }
           const anchor = videoId() && findLike();
           if (!anchor || !anchor.parentElement) { button?.remove(); return; }
           if (!button) {

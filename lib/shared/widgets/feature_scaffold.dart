@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/animation_timings.dart';
+import '../../core/theme/app_motion.dart';
 
 import 'crock_logo.dart';
 import 'crock_notification.dart';
@@ -144,6 +145,8 @@ Future<T?> showCrockDialog<T>({
         : const AnimationStyle(
             duration: AnimationTimings.modalPopIn,
             reverseDuration: AnimationTimings.modalPopOut,
+            curve: AppMotion.curve,
+            reverseCurve: AppMotion.curve,
           ),
     builder: builder,
     barrierDismissible: barrierDismissible,
@@ -169,6 +172,8 @@ Future<T?> showCrockSheet<T>({
         : const AnimationStyle(
             duration: AnimationTimings.sheetSlideIn,
             reverseDuration: AnimationTimings.sheetSlideOut,
+            curve: AppMotion.curve,
+            reverseCurve: AppMotion.curve,
           ),
     builder: builder,
     isScrollControlled: isScrollControlled,

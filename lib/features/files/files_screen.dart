@@ -1,3 +1,5 @@
+import '../../core/theme/app_motion.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -225,6 +227,7 @@ class _FilesScreenState extends State<FilesScreen> {
                             trailing: device
                                 ? null
                                 : PopupMenuButton<String>(
+                                    popUpAnimationStyle: AppMotion.style,
                                     onSelected: (action) =>
                                         _action(file, action),
                                     itemBuilder: (context) => [

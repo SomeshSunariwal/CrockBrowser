@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'core/storage/browser_store.dart';
 import 'core/theme/crock_theme.dart';
+import 'core/theme/app_motion.dart';
 import 'features/browser/browser_shell.dart';
 import 'shared/widgets/crock_logo.dart';
 import 'shared/widgets/crock_notification.dart';
@@ -67,6 +68,7 @@ class CrockApp extends StatelessWidget {
         _ => ThemeMode.system,
       };
       return MaterialApp(
+        themeAnimationCurve: AppMotion.curve,
         title: 'Crock Browser',
         debugShowCheckedModeBanner: false,
         builder: (context, child) => CrockNotificationHost(child: child!),

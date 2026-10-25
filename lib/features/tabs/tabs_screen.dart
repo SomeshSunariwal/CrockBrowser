@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/browser_tab.dart';
 import '../../core/theme/animation_timings.dart';
+import '../../core/theme/app_motion.dart';
 import '../browser/browser_controller.dart';
 import 'widgets/browser_tab_card.dart';
 import 'widgets/tab_window_transition.dart';
@@ -36,6 +37,11 @@ class _TabsScreenState extends State<TabsScreen> {
       widget.browser.select(index);
     }
     _openingTabId = widget.browser.current.id;
+    final thumbnail = widget.browser.current.thumbnail;
+    if (!widget.browser.current.atHome && thumbnail != null) {
+      await precacheImage(MemoryImage(thumbnail), context);
+      if (!mounted) return;
+    }
     // Lay out the selected page underneath while keeping the tapped card in place.
     await WidgetsBinding.instance.endOfFrame;
     if (mounted && ModalRoute.of(context)?.isCurrent == true) {
@@ -56,6 +62,7 @@ class _TabsScreenState extends State<TabsScreen> {
           icon: Icon(grid ? Icons.view_list_rounded : Icons.grid_view_rounded),
         ),
         PopupMenuButton<String>(
+          popUpAnimationStyle: AppMotion.style,
           onSelected: (value) async {
             if (value == 'reopen') {
               widget.browser.reopenClosed();
@@ -148,6 +155,8 @@ class _TabsScreenState extends State<TabsScreen> {
         enabled: _creatingTab && !MediaQuery.disableAnimationsOf(context),
         child: Hero(
           tag: tabWindowHero(_openingTabId ?? 'new'),
+          curve: tabWindowCurve,
+          reverseCurve: tabWindowCurve,
           createRectTween: tabWindowRectTween,
           flightShuttleBuilder: homeTabWindowFlight,
           child: _NewTabCard(
@@ -181,6 +190,8 @@ class _TabsScreenState extends State<TabsScreen> {
           ? card
           : Hero(
               tag: tabWindowHero(tab.id),
+              curve: tabWindowCurve,
+              reverseCurve: tabWindowCurve,
               createRectTween: tabWindowRectTween,
               flightShuttleBuilder: tabFlightFor(tab),
               child: card,
@@ -375,7 +386,7 @@ class _TabSwipeDismissibleState extends State<_TabSwipeDismissible>
           () => _offset = Offset.lerp(
             _begin,
             _target,
-            Curves.easeOutCubic.transform(_motion.value),
+            AppMotion.curve.transform(_motion.value),
           )!,
         );
       });

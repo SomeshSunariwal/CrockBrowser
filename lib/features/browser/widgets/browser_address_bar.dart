@@ -1,3 +1,5 @@
+import '../../../core/theme/app_motion.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/crock_theme.dart';
@@ -115,6 +117,7 @@ class BrowserAddressBar extends StatelessWidget {
             width: 40,
             height: 40,
             child: PopupMenuButton<String>(
+              popUpAnimationStyle: AppMotion.style,
               tooltip: 'More browser options',
               padding: EdgeInsets.zero,
               iconSize: 22,

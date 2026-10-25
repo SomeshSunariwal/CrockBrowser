@@ -222,7 +222,7 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 30),
           Center(
             child: Text(
-              'Crock Browser 1.0',
+              'Crock Browser 0.1.1',
               style: TextStyle(
                 fontSize: 12,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,

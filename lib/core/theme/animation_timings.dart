@@ -9,8 +9,7 @@ abstract final class AnimationTimings {
   static const notificationSlideIn = Duration(milliseconds: 240);
   static const notificationSlideOut = Duration(milliseconds: 180);
   static const notificationSwipe = Duration(milliseconds: 180);
-  static const tabOverviewOpen = Duration(milliseconds: 280);
-  static const tabOverviewClose = Duration(milliseconds: 350);
+  static const tabOverview = Duration(milliseconds: 300);
   static const tabSwipe = Duration(milliseconds: 220);
   static const downloadQualityPopup = Duration(milliseconds: 180);
 }

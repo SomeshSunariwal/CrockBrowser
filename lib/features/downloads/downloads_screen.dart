@@ -1,3 +1,5 @@
+import '../../core/theme/app_motion.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 
@@ -344,6 +346,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     width: 40,
                     height: 40,
                     child: PopupMenuButton<String>(
+                      popUpAnimationStyle: AppMotion.style,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
                         minWidth: 40,

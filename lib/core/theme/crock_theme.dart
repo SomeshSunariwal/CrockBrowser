@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+
+import 'app_motion.dart';
 
 abstract final class CrockTheme {
   static const blue = Color(0xFF087CFA);
@@ -71,10 +72,10 @@ abstract final class CrockTheme {
       colorScheme: scheme,
     );
     return base.copyWith(
-      pageTransitionsTheme: const PageTransitionsTheme(
+      pageTransitionsTheme: PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          for (final platform in TargetPlatform.values)
+            platform: const EasyEasePageTransitionsBuilder(),
         },
       ),
       scaffoldBackgroundColor: backgroundColor,

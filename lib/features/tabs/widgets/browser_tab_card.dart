@@ -78,7 +78,7 @@ class BrowserTabCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
         ),
-        child: tab.thumbnail != null && !tab.atHome
+        child: tab.thumbnail != null
             ? Image.memory(
                 tab.thumbnail!,
                 width: double.infinity,
@@ -105,25 +105,24 @@ class BrowserTabCard extends StatelessWidget {
               ),
       ),
     );
-    final preview = Stack(
+    return Stack(
       fit: StackFit.expand,
       children: [
-        image,
+        if (previewHero)
+          Hero(
+            key: tabPreviewHeroKey,
+            tag: tabWindowHero(tab.id),
+            curve: tabWindowCurve,
+            reverseCurve: tabWindowCurve,
+            createRectTween: tabWindowRectTween,
+            flightShuttleBuilder: tabFlightFor(tab),
+            child: image,
+          )
+        else
+          image,
         if (showClose)
-          Positioned(
-            top: 4,
-            right: 4,
-            child: _TabCardChrome(slide: false, child: _close(overlay: true)),
-          ),
+          Positioned(top: 4, right: 4, child: _close(overlay: true)),
       ],
-    );
-    if (!previewHero) return preview;
-    return Hero(
-      key: tabPreviewHeroKey,
-      tag: tabWindowHero(tab.id),
-      createRectTween: tabWindowRectTween,
-      flightShuttleBuilder: tabFlightFor(tab),
-      child: preview,
     );
   }
 
@@ -159,38 +158,34 @@ class BrowserTabCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _TabCardChrome(
+                Padding(
                   key: ValueKey('tab-metadata-${tab.id}'),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 9),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            height: 1.3,
-                          ),
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 9),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          height: 1.3,
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          host,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                            fontSize: 11,
-                          ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        host,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 11,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -227,37 +222,4 @@ class BrowserTabCard extends StatelessWidget {
             ),
     ),
   );
-}
-
-/// Keep the footer laid out while it fades and rises with the overview route.
-/// The preview Hero can then land at its final size without a last-frame reflow.
-class _TabCardChrome extends StatelessWidget {
-  const _TabCardChrome({super.key, required this.child, this.slide = true});
-  final Widget child;
-  final bool slide;
-
-  @override
-  Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) return child;
-    final animation =
-        ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation;
-    return AnimatedBuilder(
-      animation: animation,
-      child: child,
-      builder: (_, child) {
-        final progress = const Interval(
-          .35,
-          1,
-          curve: Curves.easeOutCubic,
-        ).transform(animation.value);
-        return Opacity(
-          opacity: progress,
-          child: Transform.translate(
-            offset: Offset(0, slide ? 12 * (1 - progress) : 0),
-            child: child,
-          ),
-        );
-      },
-    );
-  }
 }
