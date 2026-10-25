@@ -6,7 +6,7 @@ mixin _BrowserActions on State<BrowserShell> {
   DownloadController get downloads;
   BrowserStore get store;
   Future<void> _open(String value);
-  void _push(Widget screen);
+  Future<void> _push(Widget screen);
   Future<void> _showTabs();
 
   void _tool(String name) {

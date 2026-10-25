@@ -37,10 +37,19 @@ class BrowserController extends ChangeNotifier {
   final events = StreamController<Map<String, dynamic>>.broadcast();
   int selected = 0;
   bool _tabOverviewVisible = false;
+  bool _featureScreenVisible = false;
   BrowserTab get current => tabs[selected];
   Rect? get currentViewportBounds => _thumbnailBounds[current.id]?.call();
   bool isTabActive(BrowserTab tab) =>
-      !_tabOverviewVisible && tab == current && !tab.atHome;
+      !_tabOverviewVisible &&
+      !_featureScreenVisible &&
+      tab == current &&
+      !tab.atHome;
+
+  Future<void> setFeatureScreenVisible(bool visible) async {
+    _featureScreenVisible = visible;
+    await _syncTabActivity();
+  }
 
   Future<void> setTabOverviewVisible(bool visible) async {
     _tabOverviewVisible = visible;

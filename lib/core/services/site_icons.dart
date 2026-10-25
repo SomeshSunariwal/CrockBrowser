@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// Icons come from the website itself, without a third-party favicon service.
 abstract final class SiteIcons {
   static final changes = ValueNotifier<int>(0);
   static final _cache = <String, (DateTime, Future<Uint8List?>)>{};
+  static final _bundled = <String, Future<Uint8List?>>{};
   static const _limit = 512 * 1024;
 
   static void remember(String url, Uint8List png) {
@@ -31,6 +33,20 @@ abstract final class SiteIcons {
         uri.host.isEmpty ||
         uri.userInfo.isNotEmpty) {
       return Future.value();
+    }
+    final bundled = switch (uri.host.toLowerCase()) {
+      'google.com' || 'www.google.com' || 'm.google.com' => 'google',
+      'youtube.com' ||
+      'www.youtube.com' ||
+      'm.youtube.com' ||
+      'youtu.be' => 'youtube',
+      _ => null,
+    };
+    if (bundled != null) {
+      return _bundled.putIfAbsent(bundled, () async {
+        final data = await rootBundle.load('assets/site_icons/$bundled.png');
+        return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      });
     }
     final origin = uri.origin;
     final cached = _cache[origin];
