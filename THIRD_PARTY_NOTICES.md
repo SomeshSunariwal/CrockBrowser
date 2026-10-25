@@ -1,5 +1,13 @@
 # Third-party components
 
+## Bookmark logos
+
+Google and YouTube bookmark logos are bundled for offline display. They were
+obtained from the brands' official websites; the logos belong to their respective owners.
+
+- Google: https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png
+- YouTube: https://www.youtube.com/s/desktop/dc0b62b0/img/favicon_144x144.png
+
 ## NewPipeExtractor
 
 YouTube extraction uses NewPipeExtractor v0.26.5, licensed under

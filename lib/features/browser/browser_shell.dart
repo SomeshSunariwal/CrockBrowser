@@ -69,6 +69,7 @@ class _BrowserShellState extends State<BrowserShell>
   String? _addressTab;
   String? _addressPage;
   bool _openingTabs = false;
+  int _featureRouteCount = 0;
   bool _youtubeMenuOpen = false;
   final _tabToolbarMotion = ProxyAnimation(const AlwaysStoppedAnimation(0));
   @override
@@ -330,10 +331,21 @@ class _BrowserShellState extends State<BrowserShell>
   }
 
   @override
-  void _push(Widget screen) => Navigator.push(
-    context,
-    MaterialPageRoute<void>(builder: (context) => screen),
-  );
+  Future<void> _push(Widget screen) async {
+    _featureRouteCount++;
+    try {
+      await browser.setFeatureScreenVisible(true);
+      if (!mounted) return;
+      final route = MaterialPageRoute<void>(builder: (context) => screen);
+      await Navigator.push<void>(context, route);
+      await route.completed;
+    } finally {
+      _featureRouteCount--;
+      if (mounted && _featureRouteCount == 0) {
+        await browser.setFeatureScreenVisible(false);
+      }
+    }
+  }
 
   @override
   Future<void> _showTabs() async {
