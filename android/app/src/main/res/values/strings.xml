@@ -1,0 +1,7 @@
+<resources>
+    <string name="player_title">"  Crock Player"</string>
+    <string name="player_close">Close</string>
+    <string name="player_speed">Speed 1×</string>
+    <string name="player_mini">Mini player</string>
+    <string name="player_background">Background</string>
+</resources>

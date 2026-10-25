@@ -126,63 +126,26 @@ class BrowserAddressBar extends StatelessWidget {
                 crockNotificationObscured.value = false;
                 onMenuSelected(value);
               },
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'back',
-                  child: _BrowserMenuItem(
-                    icon: Icons.arrow_back_rounded,
-                    label: 'Back',
+              itemBuilder: (context) => [
+                for (final (value, icon, label) in const [
+                  ('back', Icons.arrow_back_rounded, 'Back'),
+                  ('newTab', Icons.add_rounded, 'New Tab'),
+                  (
+                    'newPrivateTab',
+                    Icons.visibility_off_outlined,
+                    'New Private Tab',
                   ),
-                ),
-                PopupMenuItem(
-                  value: 'newTab',
-                  child: _BrowserMenuItem(
-                    icon: Icons.add_rounded,
-                    label: 'New Tab',
+                  ('history', Icons.history_rounded, 'History'),
+                  ('downloads', Icons.download_rounded, 'Downloads'),
+                  ('find', Icons.search_rounded, 'Find in page'),
+                  ('refresh', Icons.refresh_rounded, 'Refresh page'),
+                  ('browserMenu', Icons.grid_view_rounded, 'Browser menu'),
+                  ('closeTab', Icons.close_rounded, 'Close tab'),
+                ])
+                  PopupMenuItem(
+                    value: value,
+                    child: _BrowserMenuItem(icon: icon, label: label),
                   ),
-                ),
-                PopupMenuItem(
-                  value: 'newPrivateTab',
-                  child: _BrowserMenuItem(
-                    icon: Icons.visibility_off_outlined,
-                    label: 'New Private Tab',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'downloads',
-                  child: _BrowserMenuItem(
-                    icon: Icons.download_rounded,
-                    label: 'Downloads',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'find',
-                  child: _BrowserMenuItem(
-                    icon: Icons.search_rounded,
-                    label: 'Find in page',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'refresh',
-                  child: _BrowserMenuItem(
-                    icon: Icons.refresh_rounded,
-                    label: 'Refresh page',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'browserMenu',
-                  child: _BrowserMenuItem(
-                    icon: Icons.grid_view_rounded,
-                    label: 'Browser menu',
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'closeTab',
-                  child: _BrowserMenuItem(
-                    icon: Icons.close_rounded,
-                    label: 'Close tab',
-                  ),
-                ),
               ],
               icon: Icon(
                 Icons.more_vert_rounded,

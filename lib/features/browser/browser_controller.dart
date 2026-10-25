@@ -26,6 +26,7 @@ class BrowserController extends ChangeNotifier {
   final List<BrowserTab> closedTabs = [];
   final Map<int, String> _ids = {};
   final Map<String, MethodChannel> _channels = {};
+  final Map<String, Rect? Function()> _thumbnailBounds = {};
   final Map<String, Future<void>> _capturingThumbnails = {};
   final Set<String> _thumbnailCapturedForLoad = {};
   final Map<String, String> _pendingOffline = {};
@@ -37,6 +38,7 @@ class BrowserController extends ChangeNotifier {
   int selected = 0;
   bool _tabOverviewVisible = false;
   BrowserTab get current => tabs[selected];
+  Rect? get currentViewportBounds => _thumbnailBounds[current.id]?.call();
   bool isTabActive(BrowserTab tab) =>
       !_tabOverviewVisible && tab == current && !tab.atHome;
 
@@ -66,6 +68,13 @@ class BrowserController extends ChangeNotifier {
   }
 
   bool get privateMode => store.privateMode;
+  // Keep the previous switch preference when upgrading to the skip-only feature.
+  bool get youtubeAutoSkipAds =>
+      store.setting(
+        'youtubeAutoSkipAds',
+        store.setting('youtubeAdBlock', false),
+      ) ==
+      true;
   bool get darkTheme {
     final legacy = store.setting('darkTheme', false) == true;
     return switch (store.setting('themeMode', legacy ? 'dark' : 'system')) {
@@ -77,9 +86,10 @@ class BrowserController extends ChangeNotifier {
     };
   }
 
-  void attach(int view, BrowserTab tab) {
+  void attach(int view, BrowserTab tab, {Rect? Function()? thumbnailBounds}) {
     _ids[view] = tab.id;
     _channels[tab.id] = MethodChannel('croc/webview/$view');
+    if (thumbnailBounds != null) _thumbnailBounds[tab.id] = thumbnailBounds;
     unawaited(_setTabActivity(tab));
     final offline = _pendingOffline.remove(tab.id);
     if (offline != null) {
@@ -110,7 +120,18 @@ class BrowserController extends ChangeNotifier {
 
   Future<void> _captureThumbnail(BrowserTab tab, MethodChannel channel) async {
     try {
-      final image = await channel.invokeMethod<Uint8List>('captureThumbnail');
+      final bounds = _thumbnailBounds[tab.id]?.call();
+      final image = await channel.invokeMethod<Uint8List>(
+        'captureThumbnail',
+        bounds == null
+            ? null
+            : {
+                'left': bounds.left.round(),
+                'top': bounds.top.round(),
+                'right': bounds.right.round(),
+                'bottom': bounds.bottom.round(),
+              },
+      );
       if (image != null && tabs.contains(tab)) {
         tab.thumbnail = image;
         notifyListeners();
@@ -124,6 +145,27 @@ class BrowserController extends ChangeNotifier {
 
   Future<dynamic> page(String method, [Map<String, dynamic>? args]) async =>
       _channels[current.id]?.invokeMethod(method, args);
+
+  Future<void> preservePagePositionDuring(
+    Future<void> Function() motion,
+  ) async {
+    // Retain this channel so switching tabs cannot leave the old view pinned.
+    final channel = _channels[current.id];
+    await channel?.invokeMethod('preserveScrollOnResize', {'enabled': true});
+    try {
+      await motion();
+    } finally {
+      try {
+        await channel?.invokeMethod('preserveScrollOnResize', {
+          'enabled': false,
+        });
+      } on PlatformException {
+        // The tab may have closed during the animation.
+      } on MissingPluginException {
+        // The platform view has already been disposed.
+      }
+    }
+  }
 
   void userScroll(BrowserTab tab, double delta) {
     if (tab != current ||
@@ -148,6 +190,10 @@ class BrowserController extends ChangeNotifier {
     switch (event['type']) {
       case 'loginSuggestion':
         if (!privateMode && tab == current && !current.atHome) {
+          events.add(event);
+        }
+      case 'youtubeDownload':
+        if (tab != null && tab == current && isTabActive(tab)) {
           events.add(event);
         }
       case 'favicon':
@@ -284,6 +330,7 @@ class BrowserController extends ChangeNotifier {
       unawaited(_setTabActivity(tabs[index], active: false));
     }
     final removed = tabs.removeAt(index);
+    _thumbnailBounds.remove(removed.id);
     _scrollY.remove(removed.id);
     _scrollDirection.remove(removed.id);
     _scrollable.remove(removed.id);
@@ -356,6 +403,7 @@ class BrowserController extends ChangeNotifier {
         'font': store.setting('font', 100),
         'darkTheme': darkTheme,
         'adBlock': store.setting('adBlock', false),
+        'youtubeAutoSkipAds': youtubeAutoSkipAds,
         'offerSavePasswords': store.setting('offerSavePasswords', true),
         'passwordPromptBlockedOrigins': store.setting(
           'passwordPromptBlockedOrigins',

@@ -1,14 +1,18 @@
-gradle-wrapper.jar
-/.gradle
-/captures/
-/gradlew
-/gradlew.bat
-/local.properties
+.gradle/
+.kotlin/
+build/
+captures/
+local.properties
 GeneratedPluginRegistrant.java
 .cxx/
+.externalNativeBuild/
+app/debug/
+app/profile/
+app/release/
 
-# Remember to never publicly share your keystore.
-# See https://flutter.dev/to/reference-keystore
+# Gradle wrapper scripts, JAR, and properties belong in version control.
+
+# Never publish a signing keystore or its credentials.
 key.properties
 **/*.keystore
 **/*.jks

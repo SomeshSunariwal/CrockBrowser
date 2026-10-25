@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/animation_timings.dart';
+
 import 'crock_logo.dart';
 import 'crock_notification.dart';
 
@@ -70,9 +72,18 @@ class CrockEmpty extends StatelessWidget {
   );
 }
 
-void crockMessage(BuildContext context, Object message) {
+void crockMessage(
+  BuildContext context,
+  Object message, {
+  String? actionLabel,
+  VoidCallback? onAction,
+}) {
   if (!context.mounted) return;
-  crockNotification.value = message.toString();
+  crockNotification.value = CrockNotification(
+    message.toString(),
+    actionLabel: actionLabel,
+    onAction: onAction,
+  );
 }
 
 Future<bool> confirmCrock(
@@ -128,6 +139,12 @@ Future<T?> showCrockDialog<T>({
   final navigator = Navigator.of(context, rootNavigator: true);
   final route = DialogRoute<T>(
     context: context,
+    animationStyle: MediaQuery.disableAnimationsOf(context)
+        ? AnimationStyle.noAnimation
+        : const AnimationStyle(
+            duration: AnimationTimings.modalPopIn,
+            reverseDuration: AnimationTimings.modalPopOut,
+          ),
     builder: builder,
     barrierDismissible: barrierDismissible,
     themes: InheritedTheme.capture(from: context, to: navigator.context),
@@ -150,8 +167,8 @@ Future<T?> showCrockSheet<T>({
     sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
         ? AnimationStyle.noAnimation
         : const AnimationStyle(
-            duration: Duration(milliseconds: 280),
-            reverseDuration: Duration(milliseconds: 200),
+            duration: AnimationTimings.sheetSlideIn,
+            reverseDuration: AnimationTimings.sheetSlideOut,
           ),
     builder: builder,
     isScrollControlled: isScrollControlled,

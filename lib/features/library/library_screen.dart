@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/editor_dialog.dart';
 import 'bookmark_exchange.dart';
+import '../privacy/browsing_data_time_range.dart';
+import '../settings/widgets/clear_website_data_dialog.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({
@@ -229,12 +232,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final input = TextEditingController(text: old?['title'] as String? ?? '');
     final value = await showCrockDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(old == null ? 'New folder' : 'Rename folder'),
-        content: TextField(
+      builder: (context) => CrockEditorDialog(
+        title: old == null ? 'New folder' : 'Rename folder',
+        content: CrockEditorField(
+          label: 'Folder name',
           controller: input,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Folder name'),
+          textInputAction: TextInputAction.done,
         ),
         actions: [
           TextButton(
@@ -291,42 +295,43 @@ class _LibraryScreenState extends State<LibraryScreen> {
     await showCrockDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: const Text('Edit bookmark'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: 'Title'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: url,
-                  decoration: const InputDecoration(labelText: 'URL'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: target,
-                  items: [
-                    const DropdownMenuItem(
-                      value: '',
-                      child: Text('Bookmarks root'),
-                    ),
-                    ...widget.store
-                        .rows('folders')
-                        .map(
-                          (f) => DropdownMenuItem(
-                            value: f['id'] as String,
-                            child: Text(f['title'] as String),
-                          ),
+        builder: (context, setLocal) => CrockEditorDialog(
+          title: 'Edit bookmark',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CrockEditorField(
+                label: 'Title',
+                controller: name,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              CrockEditorField(
+                label: 'Website URL',
+                controller: url,
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.done,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: target,
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('Bookmarks root'),
+                  ),
+                  ...widget.store
+                      .rows('folders')
+                      .map(
+                        (f) => DropdownMenuItem(
+                          value: f['id'] as String,
+                          child: Text(f['title'] as String),
                         ),
-                  ],
-                  onChanged: (value) => setLocal(() => target = value ?? ''),
-                ),
-              ],
-            ),
+                      ),
+                ],
+                onChanged: (value) => setLocal(() => target = value ?? ''),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -374,12 +379,24 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> _action(String action) async {
     try {
       if (action == 'clear') {
-        if (await confirmCrock(
-          context,
-          'Clear history?',
-          'Remove normal browsing history from this device?',
-        )) {
-          widget.store.setRows('history', []);
+        final selection = await showCrockDialog<BrowsingDataSelection>(
+          context: context,
+          builder: (_) => const ClearWebsiteDataDialog(historyOnly: true),
+        );
+        if (selection != null) {
+          widget.store.setRows(
+            'history',
+            historyOutsideTimeRange(
+              widget.store.rows('history'),
+              selection.timeRange,
+              DateTime.now(),
+            ),
+          );
+          await widget.store.flush();
+          if (widget.store.saveError != null) {
+            throw StateError(widget.store.saveError!);
+          }
+          if (mounted) crockMessage(context, 'History cleared');
         }
       }
       if (action == 'import') {

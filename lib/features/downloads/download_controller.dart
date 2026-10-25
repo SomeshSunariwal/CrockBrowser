@@ -18,9 +18,11 @@ class DownloadController extends ChangeNotifier {
         final snapshot = event['tasksJson'];
         if (snapshot is String) {
           _snapshotVersion++;
-          tasks = (jsonDecode(snapshot) as List)
-              .map((row) => Map<String, dynamic>.from(row as Map))
-              .toList();
+          _applySnapshot(
+            (jsonDecode(snapshot) as List)
+                .map((row) => Map<String, dynamic>.from(row as Map))
+                .toList(),
+          );
           loading = false;
           notifyListeners();
         } else {
@@ -36,11 +38,29 @@ class DownloadController extends ChangeNotifier {
   late StreamSubscription<Map<String, dynamic>> _events;
   final Map<String, Completer<String?>> _pendingAdds = {};
   int _snapshotVersion = 0;
+  final _completed = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get completions => _completed.stream;
+  final _completedIds = <String>{};
+  bool _hasSnapshot = false;
+
+  void _applySnapshot(List<Map<String, dynamic>> rows) {
+    tasks = rows;
+    for (final task in rows) {
+      final id = task['id'] as String;
+      if (task['state'] == 'complete' &&
+          _completedIds.add(id) &&
+          _hasSnapshot) {
+        _completed.add(Map<String, dynamic>.from(task));
+      }
+    }
+    _hasSnapshot = true;
+  }
+
   Future<void> refresh() async {
     final version = ++_snapshotVersion;
     try {
       final rows = await NativeBridge.instance.list('downloads.list');
-      if (version == _snapshotVersion) tasks = rows;
+      if (version == _snapshotVersion) _applySnapshot(rows);
     } catch (error) {
       lastError = error.toString();
     }
@@ -92,6 +112,7 @@ class DownloadController extends ChangeNotifier {
   @override
   void dispose() {
     _events.cancel();
+    _completed.close();
     super.dispose();
   }
 }

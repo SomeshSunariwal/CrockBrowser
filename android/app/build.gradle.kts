@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.crocbrowser"
+    namespace = "com.browser.crockbrowser"
     compileSdk { version = release(37) }
     ndkVersion = "28.2.13676358"
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.crocbrowser"
+        applicationId = "com.browser.crockbrowser"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 33
@@ -38,6 +38,11 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5") {
+        // The extractor uses Rhino's interpreter directly, not the desktop JSR-223 engine.
+        exclude(group = "org.mozilla", module = "rhino-engine")
+    }
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("org.tukaani:xz:1.10")
     implementation("com.github.junrar:junrar:8.1.2")

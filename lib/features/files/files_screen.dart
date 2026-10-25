@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/platform/native_bridge.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/editor_dialog.dart';
 import 'archive_actions.dart';
 
 class FilesScreen extends StatefulWidget {
@@ -346,9 +347,14 @@ class _FilesScreenState extends State<FilesScreen> {
         final input = TextEditingController(text: file['name'] as String);
         name = await showCrockDialog<String>(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Rename file'),
-            content: TextField(controller: input),
+          builder: (context) => CrockEditorDialog(
+            title: 'Rename file',
+            content: CrockEditorField(
+              label: 'Filename',
+              controller: input,
+              autocorrect: false,
+              textInputAction: TextInputAction.done,
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),

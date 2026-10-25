@@ -4,6 +4,8 @@ import '../../core/storage/browser_store.dart';
 import '../../shared/widgets/crock_logo.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import 'download_controller.dart';
+import 'download_feedback.dart';
+import 'downloads_screen.dart';
 
 Future<void> showDownloadSheet(
   BuildContext context,
@@ -11,12 +13,36 @@ Future<void> showDownloadSheet(
   BrowserStore store, [
   Map<String, dynamic> draft = const {},
 ]) async {
+  final navigator = Navigator.of(context);
   await showCrockSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (context) =>
-        _DownloadSheet(downloads: downloads, store: store, draft: draft),
+    builder: (_) => _DownloadSheet(
+      downloads: downloads,
+      store: store,
+      draft: draft,
+      onComplete: (task) {
+        final target = navigator.overlay?.context;
+        if (target != null && target.mounted) {
+          showDownloadComplete(target, downloads, task);
+        }
+      },
+      onView: () {
+        if (!navigator.mounted) return;
+        if (context.mounted &&
+            (context.widget is DownloadsScreen ||
+                context.findAncestorWidgetOfExactType<DownloadsScreen>() !=
+                    null)) {
+          return;
+        }
+        navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => DownloadsScreen(downloads: downloads, store: store),
+          ),
+        );
+      },
+    ),
   );
 }
 
@@ -25,10 +51,14 @@ class _DownloadSheet extends StatefulWidget {
     required this.downloads,
     required this.store,
     required this.draft,
+    required this.onView,
+    required this.onComplete,
   });
   final DownloadController downloads;
   final BrowserStore store;
   final Map<String, dynamic> draft;
+  final VoidCallback onView;
+  final ValueChanged<Map<String, dynamic>> onComplete;
   @override
   State<_DownloadSheet> createState() => _DownloadSheetState();
 }
@@ -122,6 +152,7 @@ class _DownloadSheetState extends State<_DownloadSheet> {
                   ? null
                   : () async {
                       setState(() => busy = true);
+                      final started = DateTime.now().millisecondsSinceEpoch;
                       try {
                         final uri = Uri.tryParse(url.text.trim());
                         final path = uri?.pathSegments
@@ -138,7 +169,26 @@ class _DownloadSheetState extends State<_DownloadSheet> {
                           'tree': widget.store.setting('downloadFolder', ''),
                         });
                         if (context.mounted) {
-                          crockMessage(context, 'File added to downloads');
+                          // A tiny file can finish before the sheet closes.
+                          // Keep its Open action instead of replacing it with View.
+                          final finished = widget.downloads.tasks
+                              .where(
+                                (task) =>
+                                    task['url'] == url.text.trim() &&
+                                    task['state'] == 'complete' &&
+                                    (task['created'] as num? ?? 0) >= started,
+                              )
+                              .firstOrNull;
+                          if (finished != null) {
+                            widget.onComplete(finished);
+                          } else {
+                            crockMessage(
+                              context,
+                              'File added to downloads',
+                              actionLabel: 'View',
+                              onAction: widget.onView,
+                            );
+                          }
                           dismissCrockRoute<void>(context);
                         }
                       } catch (error) {
