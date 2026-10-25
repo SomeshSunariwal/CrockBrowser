@@ -11,11 +11,11 @@ class DownloadController extends ChangeNotifier {
       if (event['type'] == 'downloads') {
         final error = (event['error'] as String?)?.trim();
         lastError = error == null || error.isEmpty ? null : error;
+        final snapshot = event['tasksJson'];
         final pending = _pendingAdds.remove(event['requestId']);
         if (pending != null) {
-          pending.complete(lastError?.isNotEmpty == true ? lastError : null);
+          pending.complete(_AddReceipt(lastError, snapshot is String));
         }
-        final snapshot = event['tasksJson'];
         if (snapshot is String) {
           _snapshotVersion++;
           _applySnapshot(
@@ -25,7 +25,7 @@ class DownloadController extends ChangeNotifier {
           );
           loading = false;
           notifyListeners();
-        } else {
+        } else if (pending == null) {
           refresh();
         }
       }
@@ -36,7 +36,8 @@ class DownloadController extends ChangeNotifier {
   String? lastError;
   bool loading = true;
   late StreamSubscription<Map<String, dynamic>> _events;
-  final Map<String, Completer<String?>> _pendingAdds = {};
+  final Map<String, Completer<_AddReceipt>> _pendingAdds = {};
+  bool _requestedNotifications = false;
   int _snapshotVersion = 0;
   final _completed = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get completions => _completed.stream;
@@ -77,19 +78,30 @@ class DownloadController extends ChangeNotifier {
       throw ArgumentError('Enter an HTTP, HTTPS or magnet download URL');
     }
     final requestId = DateTime.now().microsecondsSinceEpoch.toString();
-    await NativeBridge.instance.call('device.permissions', {
-      'permissions': ['android.permission.POST_NOTIFICATIONS'],
-    });
-    final accepted = Completer<String?>();
+    // Android permits foreground transfers even when notification permission is
+    // denied. The first permission dialog must not hold the transfer queue up.
+    if (!_requestedNotifications) {
+      _requestedNotifications = true;
+      unawaited(
+        NativeBridge.instance
+            .call('device.permissions', {
+              'permissions': ['android.permission.POST_NOTIFICATIONS'],
+            })
+            .then<void>((_) {}, onError: (Object _) {}),
+      );
+    }
+    final accepted = Completer<_AddReceipt>();
     _pendingAdds[requestId] = accepted;
     try {
       await NativeBridge.instance.call('downloads.enqueue', {
         ...request,
         'requestId': requestId,
       });
-      final error = await accepted.future.timeout(const Duration(seconds: 10));
-      if (error != null) throw StateError(error);
-      await refresh();
+      final receipt = await accepted.future.timeout(
+        const Duration(seconds: 10),
+      );
+      if (receipt.error != null) throw StateError(receipt.error!);
+      if (!receipt.hasSnapshot) await refresh();
     } finally {
       _pendingAdds.remove(requestId);
     }
@@ -115,4 +127,10 @@ class DownloadController extends ChangeNotifier {
     _completed.close();
     super.dispose();
   }
+}
+
+class _AddReceipt {
+  const _AddReceipt(this.error, this.hasSnapshot);
+  final String? error;
+  final bool hasSnapshot;
 }

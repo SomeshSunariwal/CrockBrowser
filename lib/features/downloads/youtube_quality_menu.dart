@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
 import '../../core/theme/animation_timings.dart';
+import '../../core/theme/app_motion.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import 'download_controller.dart';
 import 'download_feedback.dart';
@@ -25,8 +27,10 @@ Future<void> showYouTubeQualityMenu(
   transitionDuration: MediaQuery.disableAnimationsOf(context)
       ? Duration.zero
       : AnimationTimings.downloadQualityPopup,
-  transitionBuilder: (_, animation, _, child) =>
-      FadeTransition(opacity: animation, child: child),
+  transitionBuilder: (_, animation, _, child) => FadeTransition(
+    opacity: animation.drive(CurveTween(curve: AppMotion.curve)),
+    child: child,
+  ),
   pageBuilder: (_, _, _) => _YouTubeQualityMenu(
     url: url,
     downloads: downloads,
@@ -79,7 +83,7 @@ class _YouTubeQualityMenuState extends State<_YouTubeQualityMenu> {
   Future<Map<String, dynamic>> load() async => Map<String, dynamic>.from(
     await NativeBridge.instance
             .call<Map>('youtube.formats', {'url': widget.url})
-            .timeout(const Duration(seconds: 45)) ??
+            .timeout(const Duration(seconds: 30)) ??
         {},
   );
   Future<void> start(
@@ -126,6 +130,10 @@ class _YouTubeQualityMenuState extends State<_YouTubeQualityMenu> {
 
   String failure(Object? failure) {
     final message = failure is PlatformException ? failure.message ?? '' : '';
+    if (failure is TimeoutException ||
+        message.toLowerCase().contains('timed out')) {
+      return 'YouTube took too long to respond. Check your connection and retry.';
+    }
     if (message.startsWith('Downloads currently') ||
         message.contains('rate-limiting') ||
         message.startsWith('No compatible')) {

@@ -62,6 +62,7 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
   private final DownloadRepository downloads;
   private final ExecutorService io = Executors.newSingleThreadExecutor();
   private final ExecutorService videoIo = Executors.newSingleThreadExecutor();
+  private final Set<String> preparingVideos = java.util.concurrent.ConcurrentHashMap.newKeySet();
   private final Handler main = new Handler(Looper.getMainLooper());
   private final Set<WebView> pages = Collections.newSetFromMap(new WeakHashMap<>());
   private EventChannel.EventSink sink;
@@ -376,6 +377,26 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
     } catch (Exception error) {
       result.error("CROC", error.getMessage(), null);
     }
+  }
+
+  public void prepareYouTube(String input) {
+    final String url;
+    try {
+      url = YouTubeExtractor.canonicalUrl(input);
+    } catch (IllegalArgumentException ignored) {
+      return;
+    }
+    if (videoIo.isShutdown() || !preparingVideos.add(url)) return;
+    videoIo.execute(
+        () -> {
+          try {
+            YouTubeExtractor.formats(url);
+          } catch (Exception ignored) {
+            // Preparation is opportunistic; a user request can retry and show the error.
+          } finally {
+            preparingVideos.remove(url);
+          }
+        });
   }
 
   private void async(MethodChannel.Result result, Callable<Object> operation) {

@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -32,17 +33,14 @@ import org.schabi.newpipe.extractor.stream.VideoStream;
 /** Local public-video extraction. Browser cookies and credentials are never exported. */
 public final class YouTubeExtractor {
   private static boolean initialized;
-  private static String cachedUrl;
-  private static StreamInfo cachedInfo;
-  private static long cachedAt;
+  private record Cached(StreamInfo info, long at) {}
+  private static final Map<String, Cached> cache = new LinkedHashMap<>(4, .75f, true);
+  private static final ThreadLocal<Long> deadline = new ThreadLocal<>();
 
   private YouTubeExtractor() {}
 
   static synchronized void invalidate(String url) {
-    if (url.equals(cachedUrl)) {
-      cachedInfo = null;
-      cachedUrl = null;
-    }
+    cache.remove(url);
   }
 
   public static String canonicalUrl(String input) {
@@ -77,19 +75,31 @@ public final class YouTubeExtractor {
   private static synchronized StreamInfo info(String input) throws Exception {
     String url = canonicalUrl(input);
     long now = System.nanoTime();
-    if (url.equals(cachedUrl) && cachedInfo != null && now - cachedAt < 90_000_000_000L)
-      return cachedInfo;
+    Cached cached = cache.get(url);
+    if (cached != null && now - cached.at() < 90_000_000_000L) return cached.info();
     if (!initialized) {
       NewPipe.init(new Network());
       initialized = true;
     }
-    StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, url);
-    if (info.getStreamType() != StreamType.VIDEO_STREAM)
-      throw new IOException("Downloads currently support regular videos, not live streams");
-    cachedInfo = info;
-    cachedUrl = url;
-    cachedAt = System.nanoTime();
-    return info;
+    deadline.set(System.nanoTime() + 25_000_000_000L);
+    try {
+      StreamInfo info = StreamInfo.getInfo(ServiceList.YouTube, url);
+      if (info.getStreamType() != StreamType.VIDEO_STREAM)
+        throw new IOException("Downloads currently support regular videos, not live streams");
+      cache.put(url, new Cached(info, System.nanoTime()));
+      while (cache.size() > 4) cache.remove(cache.keySet().iterator().next());
+      return info;
+    } finally {
+      deadline.remove();
+    }
+  }
+
+  private static int remainingTimeout() throws java.net.SocketTimeoutException {
+    Long limit = deadline.get();
+    long remaining = limit == null ? 12000 : (limit - System.nanoTime()) / 1_000_000;
+    if (Thread.currentThread().isInterrupted() || remaining <= 0)
+      throw new java.net.SocketTimeoutException("YouTube qualities request timed out");
+    return (int) Math.max(1, Math.min(12000, remaining));
   }
 
   private static boolean direct(Stream stream) {
@@ -228,8 +238,8 @@ public final class YouTubeExtractor {
       if (!url.getProtocol().equals("https"))
         throw new IOException("Insecure extractor request blocked");
       HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-      connection.setConnectTimeout(20000);
-      connection.setReadTimeout(25000);
+      connection.setConnectTimeout(remainingTimeout());
+      connection.setReadTimeout(remainingTimeout());
       connection.setRequestMethod(request.httpMethod());
       connection.setRequestProperty(
           "User-Agent",
@@ -259,6 +269,7 @@ public final class YouTubeExtractor {
             byte[] buffer = new byte[16384];
             int count;
             while ((count = input.read(buffer)) != -1) {
+              connection.setReadTimeout(remainingTimeout());
               if (bytes.size() + count > 16 * 1024 * 1024)
                 throw new IOException("Extractor response is too large");
               bytes.write(buffer, 0, count);

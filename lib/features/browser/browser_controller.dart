@@ -37,6 +37,10 @@ class BrowserController extends ChangeNotifier {
   final events = StreamController<Map<String, dynamic>>.broadcast();
   int selected = 0;
   bool _tabOverviewVisible = false;
+  bool get tabOverviewVisible => _tabOverviewVisible;
+  bool _tabSnapshotVisible = false;
+  bool _disposed = false;
+  bool get tabSnapshotVisible => _tabSnapshotVisible;
   bool _featureScreenVisible = false;
   BrowserTab get current => tabs[selected];
   Rect? get currentViewportBounds => _thumbnailBounds[current.id]?.call();
@@ -53,7 +57,31 @@ class BrowserController extends ChangeNotifier {
 
   Future<void> setTabOverviewVisible(bool visible) async {
     _tabOverviewVisible = visible;
+    // Retain the snapshot on exit until the remounted Android surface draws.
+    if (visible) _tabSnapshotVisible = true;
+    notifyListeners();
     await _syncTabActivity();
+    if (!visible) {
+      final tab = current;
+      try {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!tab.atHome) {
+          await _channels[tab.id]
+              ?.invokeMethod('awaitVisualFrame')
+              .timeout(const Duration(milliseconds: 750));
+        }
+        await WidgetsBinding.instance.endOfFrame;
+      } on PlatformException {
+        // Closing a tab can detach the view before its first draw.
+      } on MissingPluginException {
+        // An older native build may not implement the draw acknowledgement.
+      } on TimeoutException {
+        // A closing surface must not leave the snapshot pinned.
+      } finally {
+        _tabSnapshotVisible = false;
+        if (!_disposed) notifyListeners();
+      }
+    }
   }
 
   Future<void> _setTabActivity(BrowserTab tab, {bool? active}) async {
@@ -107,6 +135,9 @@ class BrowserController extends ChangeNotifier {
   }
 
   Future<void> captureThumbnails({bool refresh = false}) async {
+    // PixelCopy reads the Activity window, not a hidden tab's private buffer.
+    // Capturing while overview or its handoff cover is visible saves the wrong UI.
+    if (_tabOverviewVisible || _tabSnapshotVisible) return;
     final tab = current;
     if (tab.atHome) return;
     final pending = _capturingThumbnails[tab.id];
@@ -141,7 +172,11 @@ class BrowserController extends ChangeNotifier {
                 'bottom': bounds.bottom.round(),
               },
       );
-      if (image != null && tabs.contains(tab)) {
+      if (image != null &&
+          tabs.contains(tab) &&
+          current == tab &&
+          isTabActive(tab) &&
+          !_tabSnapshotVisible) {
         tab.thumbnail = image;
         notifyListeners();
       }
@@ -237,6 +272,8 @@ class BrowserController extends ChangeNotifier {
         }
         notifyListeners();
         if (tab == current &&
+            isTabActive(tab) &&
+            !_tabSnapshotVisible &&
             !tab.loading &&
             !tab.failed &&
             !tab.atHome &&
@@ -459,6 +496,7 @@ class BrowserController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _events.cancel();
     events.close();
     super.dispose();

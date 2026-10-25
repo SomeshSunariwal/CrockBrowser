@@ -1,3 +1,5 @@
+import '../../core/theme/app_motion.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/storage/browser_store.dart';
@@ -48,6 +50,7 @@ class SearchEnginesScreen extends StatelessWidget {
                     ),
                     onTap: () => store.setSetting('engine', engine['id']),
                     trailing: PopupMenuButton<String>(
+                      popUpAnimationStyle: AppMotion.style,
                       onSelected: (value) {
                         if (value == 'edit') {
                           _edit(context, engine);

@@ -86,6 +86,7 @@ public final class DownloadService extends Service {
   @Override
   public synchronized int onStartCommand(Intent intent, int flags, int startId) {
     stopping = false;
+    String acceptedRequest = "";
     if (intent != null)
       try {
         String action = intent.getStringExtra("action"), id = intent.getStringExtra("id");
@@ -118,12 +119,7 @@ public final class DownloadService extends Service {
           json.put("name", name.substring(0, Math.min(160, name.length())))
               .put("id", UUID.randomUUID().toString());
           tasks.add(0, new DownloadTask(json));
-          repository.save(tasks);
-          sendBroadcast(
-              new Intent(EVENT)
-                  .setPackage(getPackageName())
-                  .putExtra("requestId", json.optString("requestId"))
-                  .putExtra("error", ""));
+          acceptedRequest = json.optString("requestId");
         } else if ("settings".equals(action)) {
           concurrency = Math.max(1, Math.min(6, intent.getIntExtra("concurrency", 3)));
           wifiOnly = intent.getBooleanExtra("wifiOnly", false);
@@ -173,7 +169,9 @@ public final class DownloadService extends Service {
         } catch (Exception ignored) {
         }
       }
-    persist();
+    // Persist once, and acknowledge with the same queue snapshot. Sending a
+    // separate empty acknowledgement forced two extra encrypted queue reads.
+    persist(acceptedRequest);
     pump();
     main.removeCallbacks(tick);
     if (!running.isEmpty()
@@ -430,23 +428,32 @@ public final class DownloadService extends Service {
   }
 
   private synchronized void persist() {
+    persist("");
+  }
+
+  private synchronized void persist(String acceptedRequest) {
     if (repository == null) return;
     try {
       repository.save(tasks);
-      broadcast("");
+      broadcast("", acceptedRequest);
       if (notifications != null) notifications.update(tasks, !closed && !stopping);
     } catch (Exception error) {
-      broadcast("Download storage error: " + error.getMessage());
+      broadcast("Download storage error: " + error.getMessage(), acceptedRequest);
     }
   }
 
   private void broadcast(String error) {
+    broadcast(error, "");
+  }
+
+  private void broadcast(String error, String requestId) {
     org.json.JSONArray rows = new org.json.JSONArray();
     for (DownloadTask task : tasks) rows.put(new JSONObject(task.publicMap()));
     sendBroadcast(
         new Intent(EVENT)
             .setPackage(getPackageName())
             .putExtra("error", error)
+            .putExtra("requestId", requestId)
             .putExtra("tasks", rows.toString()));
   }
 

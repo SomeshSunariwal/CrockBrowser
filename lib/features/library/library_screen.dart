@@ -1,3 +1,5 @@
+import '../../core/theme/app_motion.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/platform/native_bridge.dart';
@@ -78,6 +80,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               icon: const Icon(Icons.create_new_folder_outlined),
             ),
           PopupMenuButton<String>(
+            popUpAnimationStyle: AppMotion.style,
             onSelected: _action,
             itemBuilder: (context) => [
               if (bookmarks)
@@ -149,6 +152,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               onTap: () =>
                                   setState(() => folder = item['id'] as String),
                               trailing: PopupMenuButton<String>(
+                                popUpAnimationStyle: AppMotion.style,
                                 onSelected: (action) => action == 'rename'
                                     ? _folder(item)
                                     : _removeFolder(item),
@@ -202,6 +206,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                                 }
                               },
                               trailing: PopupMenuButton<String>(
+                                popUpAnimationStyle: AppMotion.style,
                                 onSelected: (action) => action == 'edit'
                                     ? _edit(item)
                                     : _remove(item),

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/models/browser_tab.dart';
+import '../../../core/theme/app_motion.dart';
 
 const tabPreviewHeroKey = ValueKey('tab-window-preview');
 const tabPreviewCorners = BorderRadius.vertical(top: Radius.circular(16));
+const tabWindowCurve = AppMotion.curve;
 
-HeroFlightShuttleBuilder tabFlightFor(BrowserTab tab) => tab.atHome
+HeroFlightShuttleBuilder tabFlightFor(BrowserTab tab) =>
+    tab.atHome && tab.thumbnail == null
     ? homeTabWindowFlight
     : (context, animation, direction, from, to) => tabPreviewFlight(
         context,
@@ -19,13 +22,21 @@ HeroFlightShuttleBuilder tabFlightFor(BrowserTab tab) => tab.atHome
 String tabWindowHero(String id) => 'crock-tab-window:$id';
 
 RectTween tabWindowRectTween(Rect? begin, Rect? end) =>
-    _TabWindowRectTween(begin: begin, end: end);
+    // Hero already curves its animation. Curving the rectangle again makes the
+    // zoom race ahead of the artwork and almost stop before the route settles.
+    RectTween(begin: begin, end: end);
 
-class _TabWindowRectTween extends RectTween {
-  _TabWindowRectTween({super.begin, super.end});
-
-  @override
-  Rect? lerp(double t) => super.lerp(Curves.easeOutCubic.transform(t));
+/// Lay out the artwork once, then scale its retained layer during the flight.
+/// In particular, don't reflow the home page at every intermediate Hero size.
+Widget _flightArtwork(BuildContext context, Widget child) {
+  final size = (context.findRenderObject()! as RenderBox).size;
+  return FittedBox(
+    fit: BoxFit.fitWidth,
+    alignment: Alignment.topCenter,
+    child: RepaintBoundary(
+      child: SizedBox(width: size.width, height: size.height, child: child),
+    ),
+  );
 }
 
 Widget homeTabWindowFlight(
@@ -37,7 +48,6 @@ Widget homeTabWindowFlight(
 ) {
   final pageContext = direction == HeroFlightDirection.push ? from : to;
   final destination = pageContext.widget as Hero;
-  final size = (pageContext.findRenderObject()! as RenderBox).size;
   final home = MediaQuery(
     data: MediaQuery.of(pageContext),
     child: Theme(data: Theme.of(pageContext), child: destination.child),
@@ -47,11 +57,7 @@ Widget homeTabWindowFlight(
     direction,
     from,
     to,
-    page: FittedBox(
-      fit: BoxFit.fitWidth,
-      alignment: Alignment.topCenter,
-      child: SizedBox(width: size.width, height: size.height, child: home),
-    ),
+    page: _flightArtwork(pageContext, home),
   );
 }
 
@@ -66,27 +72,31 @@ Widget tabPreviewFlight(
   required ImageProvider? preview,
 }) {
   final colors = Theme.of(context).colorScheme;
+  final pageContext = direction == HeroFlightDirection.push ? from : to;
   return _tabFlight(
     animation,
     direction,
     from,
     to,
-    page: Material(
-      color: colors.surface,
-      child: preview == null
-          ? Center(
-              child: Icon(
-                Icons.public_rounded,
-                color: colors.onSurfaceVariant,
-                size: 44,
+    page: _flightArtwork(
+      pageContext,
+      Material(
+        color: colors.surface,
+        child: preview == null
+            ? Center(
+                child: Icon(
+                  Icons.public_rounded,
+                  color: colors.onSurfaceVariant,
+                  size: 44,
+                ),
+              )
+            : Image(
+                image: preview,
+                fit: BoxFit.fitWidth,
+                alignment: Alignment.topCenter,
+                gaplessPlayback: true,
               ),
-            )
-          : Image(
-              image: preview,
-              fit: BoxFit.fitWidth,
-              alignment: Alignment.topCenter,
-              gaplessPlayback: true,
-            ),
+      ),
     ),
   );
 }
@@ -98,8 +108,8 @@ Widget _tabFlight(
   BuildContext to, {
   required Widget page,
 }) {
-  final card =
-      (direction == HeroFlightDirection.push ? to : from).widget as Hero;
+  final cardContext = direction == HeroFlightDirection.push ? to : from;
+  final card = cardContext.widget as Hero;
   final corners = card.key == tabPreviewHeroKey
       ? tabPreviewCorners
       : BorderRadius.circular(22);
@@ -107,42 +117,17 @@ Widget _tabFlight(
     animation: animation,
     child: page,
     builder: (_, child) {
-      final entering = direction == HeroFlightDirection.push;
-      // Hero geometry reverses pop animations internally, but the shuttle gets
-      // the route's original animation (1 -> 0). Normalize it for visual effects.
-      final progress = entering ? animation.value : 1 - animation.value;
-      final cardProgress = entering
-          ? const Interval(
-              .55,
-              1,
-              curve: Curves.easeOutCubic,
-            ).transform(progress)
-          : 1 -
-                const Interval(
-                  0,
-                  .45,
-                  curve: Curves.easeOutCubic,
-                ).transform(progress);
+      // Only one page image flies. Blending an enlarged card over it doubles
+      // artwork and scales card controls into the middle of the webpage.
+      final cardProgress = animation.value;
       return ClipRRect(
         key: const ValueKey('tab-window-flight'),
         borderRadius: BorderRadius.lerp(
           BorderRadius.zero,
           corners,
-          entering ? progress : 1 - progress,
+          cardProgress,
         )!,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            child!,
-            // Blend into the exact card preview, so its final paint matches the
-            // last zoom frame instead of swapping images when the Hero disappears.
-            Opacity(
-              key: const ValueKey('tab-card-flight-artwork'),
-              opacity: cardProgress,
-              child: card.child,
-            ),
-          ],
-        ),
+        child: child,
       );
     },
   );

@@ -177,6 +177,7 @@ public final class BrowserView implements PlatformView {
 
           @Override
           public void onPageStarted(WebView v, String url, Bitmap icon) {
+            youtubeBridge.prepare(url);
             cancelElementPicker();
             draggingPage = false;
             loginCapture.started(url);
@@ -379,6 +380,9 @@ public final class BrowserView implements PlatformView {
               case "setActive":
                 setActive(Boolean.TRUE.equals(data.get("active")));
                 result.success(null);
+                break;
+              case "awaitVisualFrame":
+                awaitVisualFrame(result);
                 break;
               case "load":
                 load(JsonCodec.string(data, "url", ""));
@@ -584,6 +588,44 @@ public final class BrowserView implements PlatformView {
             source,
             "canScroll",
             view.canScrollVertically(1) || view.canScrollVertically(-1)));
+  }
+
+  private void awaitVisualFrame(MethodChannel.Result result) {
+    if (disposed) {
+      result.success(null);
+      return;
+    }
+    view.postVisualStateCallback(
+        System.nanoTime(),
+        new WebView.VisualStateCallback() {
+          @Override
+          public void onComplete(long requestId) {
+            if (disposed) {
+              result.success(null);
+              return;
+            }
+            // The callback promises the next draw has the page. Wait for that
+            // draw before Flutter uncovers the reattached Android surface.
+            android.view.ViewTreeObserver observer = view.getViewTreeObserver();
+            observer.addOnDrawListener(
+                new android.view.ViewTreeObserver.OnDrawListener() {
+                  private boolean completed;
+
+                  @Override
+                  public void onDraw() {
+                    if (completed) return;
+                    completed = true;
+                    view.post(
+                        () -> {
+                          if (observer.isAlive()) observer.removeOnDrawListener(this);
+                          result.success(null);
+                        });
+                  }
+                });
+            view.invalidate();
+          }
+        });
+    view.invalidate();
   }
 
   private void setActive(boolean next) {

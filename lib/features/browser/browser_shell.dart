@@ -1,13 +1,15 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
+import 'dart:ui' show ImageFilter, ImageByteFormat;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
 import '../../core/theme/crock_theme.dart';
 import '../../core/theme/animation_timings.dart';
+import '../../core/theme/app_motion.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import '../downloads/download_controller.dart';
 import '../downloads/download_feedback.dart';
@@ -29,7 +31,6 @@ import '../tabs/widgets/tab_window_transition.dart';
 import 'browser_controller.dart';
 import 'native_browser_surface.dart';
 import 'widgets/browser_address_bar.dart';
-import 'widgets/tab_toolbar_transition.dart';
 import '../../shared/widgets/crock_notification.dart';
 import '../../shared/widgets/sliding_address_bar.dart';
 
@@ -62,6 +63,7 @@ class _BrowserShellState extends State<BrowserShell>
   final address = TextEditingController(), addressFocus = FocusNode();
   late final AnimationController _addressMotion;
   final _addressContentKey = GlobalKey();
+  final _homePreviewKey = GlobalKey();
   double _downwardScroll = 0;
   double? _addressScrollThreshold;
   double _upwardScroll = 0;
@@ -71,7 +73,6 @@ class _BrowserShellState extends State<BrowserShell>
   bool _openingTabs = false;
   int _featureRouteCount = 0;
   bool _youtubeMenuOpen = false;
-  final _tabToolbarMotion = ProxyAnimation(const AlwaysStoppedAnimation(0));
   @override
   BrowserStore get store => widget.store;
   @override
@@ -181,7 +182,8 @@ class _BrowserShellState extends State<BrowserShell>
     if (!mounted) return;
     switch (event['type']) {
       case 'scroll':
-        if (store.setting('addressBarMode', 'static') != 'dynamic' ||
+        if (_openingTabs ||
+            store.setting('addressBarMode', 'static') != 'dynamic' ||
             addressFocus.hasFocus ||
             ModalRoute.of(context)?.isCurrent != true) {
           return;
@@ -285,7 +287,7 @@ class _BrowserShellState extends State<BrowserShell>
       _addressMotion.animateTo(
         1,
         duration: AnimationTimings.addressBarSlideIn,
-        curve: Curves.easeOutCubic,
+        curve: AppMotion.curve,
       );
     }
   }
@@ -305,7 +307,7 @@ class _BrowserShellState extends State<BrowserShell>
               .animateBack(
                 0,
                 duration: AnimationTimings.addressBarSlideOut,
-                curve: Curves.easeInQuad,
+                curve: AppMotion.curve,
               )
               .orCancel;
         }
@@ -347,36 +349,63 @@ class _BrowserShellState extends State<BrowserShell>
     }
   }
 
+  Future<void> _captureHomeThumbnail() async {
+    final tab = browser.current;
+    if (!tab.atHome) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || browser.current != tab) return;
+    final boundary = _homePreviewKey.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || boundary.size.isEmpty) return;
+    final image = await boundary.toImage(pixelRatio: 360 / boundary.size.width);
+    try {
+      final bytes = await image.toByteData(format: ImageByteFormat.png);
+      if (bytes != null && mounted && browser.current == tab) {
+        tab.thumbnail = bytes.buffer.asUint8List();
+      }
+    } finally {
+      image.dispose();
+    }
+  }
+
   @override
   Future<void> _showTabs() async {
     if (_openingTabs) return;
     _openingTabs = true;
+    // Stop a pending address-bar slide before measuring the Hero's viewport.
+    _addressMotion.stop();
     try {
       // Capture before pausing or covering the WebView with the overview route.
-      await browser.captureThumbnails(refresh: true);
+      if (browser.current.atHome) {
+        await _captureHomeThumbnail();
+      } else {
+        await browser.captureThumbnails(refresh: true);
+      }
+      if (!mounted) return;
+      final thumbnail = browser.current.thumbnail;
+      if (thumbnail != null) {
+        // The card and the Hero use this same ImageCache key. Finish JPEG
+        // decoding before the first moving frame, rather than flashing it in
+        // partway through the zoom.
+        await precacheImage(MemoryImage(thumbnail), context);
+      }
+      if (!mounted) return;
       await browser.setTabOverviewVisible(true);
       if (mounted) {
         final route = PageRouteBuilder<void>(
           transitionDuration: MediaQuery.disableAnimationsOf(context)
               ? Duration.zero
-              : AnimationTimings.tabOverviewOpen,
+              : AnimationTimings.tabOverview,
           reverseTransitionDuration: MediaQuery.disableAnimationsOf(context)
               ? Duration.zero
-              : AnimationTimings.tabOverviewClose,
+              : AnimationTimings.tabOverview,
           pageBuilder: (_, _, _) => TabsScreen(browser: browser),
-          transitionsBuilder: (_, animation, _, child) => FadeTransition(
-            opacity: CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            ),
-            child: child,
-          ),
+          // The Hero is the only transition. Don't fade the entire overview
+          // again underneath it or animate its toolbar on another timeline.
+          transitionsBuilder: (_, _, _, child) => RepaintBoundary(child: child),
         );
         final popped = Navigator.push<void>(context, route);
-        _tabToolbarMotion.parent = route.animation;
         await popped;
         await route.completed;
-        _tabToolbarMotion.parent = null;
       }
     } finally {
       if (mounted) await browser.setTabOverviewVisible(false);
@@ -492,19 +521,37 @@ class _BrowserShellState extends State<BrowserShell>
                       children: [
                         ExcludeSemantics(
                           excluding: tab.atHome || tab.failed,
-                          child: IndexedStack(
-                            index: browser.selected,
-                            children: browser.tabs
-                                .map(
-                                  (item) => NativeBrowserSurface(
-                                    key: ValueKey(item.id),
-                                    browser: browser,
-                                    tab: item,
-                                  ),
-                                )
-                                .toList(),
+                          child: Offstage(
+                            // Hybrid composition otherwise submits the Android
+                            // WebView and Flutter overlay surfaces on every zoom
+                            // frame. Keep its state, but animate Flutter artwork.
+                            offstage: browser.tabOverviewVisible,
+                            child: IndexedStack(
+                              index: browser.selected,
+                              children: browser.tabs
+                                  .map(
+                                    (item) => NativeBrowserSurface(
+                                      key: ValueKey(item.id),
+                                      browser: browser,
+                                      tab: item,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
                           ),
                         ),
+                        if (browser.tabSnapshotVisible && !tab.atHome)
+                          ColoredBox(
+                            color: Theme.of(context).colorScheme.surface,
+                            child: tab.thumbnail == null
+                                ? const SizedBox.expand()
+                                : Image.memory(
+                                    tab.thumbnail!,
+                                    fit: BoxFit.fitWidth,
+                                    alignment: Alignment.topCenter,
+                                    gaplessPlayback: true,
+                                  ),
+                          ),
                         // Only this transparent anchor participates in the Hero.
                         // The native WebViews remain mounted throughout the flight.
                         if (!tab.atHome)
@@ -516,6 +563,8 @@ class _BrowserShellState extends State<BrowserShell>
                                 ),
                                 child: Hero(
                                   tag: tabWindowHero(tab.id),
+                                  curve: tabWindowCurve,
+                                  reverseCurve: tabWindowCurve,
                                   createRectTween: tabWindowRectTween,
                                   flightShuttleBuilder:
                                       (
@@ -550,29 +599,35 @@ class _BrowserShellState extends State<BrowserShell>
                             ),
                           ),
                         if (tab.atHome)
-                          Hero(
-                            tag: tabWindowHero(tab.id),
-                            createRectTween: tabWindowRectTween,
-                            flightShuttleBuilder: homeTabWindowFlight,
-                            child: Material(
-                              color: Theme.of(context).scaffoldBackgroundColor,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  HomeScreen(
-                                    store: store,
-                                    privateMode: browser.privateMode,
-                                    onSearch: _open,
-                                    onTool: _tool,
-                                    onShortcut: (site) =>
-                                        _open(site['url'] as String),
-                                    onEditShortcut: (site) => editShortcut(
-                                      context,
-                                      store,
-                                      site.isEmpty ? null : site,
+                          RepaintBoundary(
+                            key: _homePreviewKey,
+                            child: Hero(
+                              tag: tabWindowHero(tab.id),
+                              curve: tabWindowCurve,
+                              reverseCurve: tabWindowCurve,
+                              createRectTween: tabWindowRectTween,
+                              flightShuttleBuilder: tabFlightFor(tab),
+                              child: Material(
+                                color: Theme.of(context)
+                                    .scaffoldBackgroundColor,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    HomeScreen(
+                                      store: store,
+                                      privateMode: browser.privateMode,
+                                      onSearch: _open,
+                                      onTool: _tool,
+                                      onShortcut: (site) =>
+                                          _open(site['url'] as String),
+                                      onEditShortcut: (site) => editShortcut(
+                                        context,
+                                        store,
+                                        site.isEmpty ? null : site,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -595,96 +650,93 @@ class _BrowserShellState extends State<BrowserShell>
       );
     },
   );
-  Widget _navigation() => TabToolbarTransition(
-    animation: _tabToolbarMotion,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
-      child: Container(
-        height: 64,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(36),
-          boxShadow: [
-            BoxShadow(
-              color: Theme.of(context).colorScheme.onSurface
-                  .withValues(alpha: .14),
-              blurRadius: 28,
-              offset: const Offset(0, 10),
-            ),
-            BoxShadow(
-              color: CrockTheme.blue.withValues(alpha: .06),
-              blurRadius: 18,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(36),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface
-                    .withValues(alpha: .9),
-                borderRadius: BorderRadius.circular(36),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant
-                      .withValues(alpha: .65),
-                  width: 1,
-                ),
+  Widget _navigation() => Padding(
+    padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
+    child: Container(
+      height: 64,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(36),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.onSurface
+                .withValues(alpha: .14),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: CrockTheme.blue.withValues(alpha: .06),
+            blurRadius: 18,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(36),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface
+                  .withValues(alpha: .9),
+              borderRadius: BorderRadius.circular(36),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant
+                    .withValues(alpha: .65),
+                width: 1,
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  IconButton(
-                    tooltip: 'Back',
-                    onPressed: browser.current.atHome ? null : browser.back,
-                    icon: const Icon(Icons.arrow_back_rounded),
-                  ),
-                  IconButton(
-                    tooltip: 'Forward',
-                    onPressed:
-                        browser.current.canForward ||
-                            (browser.current.atHome &&
-                                browser.current.url.isNotEmpty)
-                        ? browser.forward
-                        : null,
-                    icon: const Icon(Icons.arrow_forward_rounded),
-                  ),
-                  IconButton(
-                    tooltip: 'Menu',
-                    onPressed: _menu,
-                    icon: const Icon(Icons.menu_rounded, size: 28),
-                  ),
-                  IconButton(
-                    tooltip: '${browser.tabs.length} open tabs',
-                    onPressed: _showTabs,
-                    icon: Container(
-                      width: 24,
-                      height: 26,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          width: 1.8,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                IconButton(
+                  tooltip: 'Back',
+                  onPressed: browser.current.atHome ? null : browser.back,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+                IconButton(
+                  tooltip: 'Forward',
+                  onPressed:
+                      browser.current.canForward ||
+                          (browser.current.atHome &&
+                              browser.current.url.isNotEmpty)
+                      ? browser.forward
+                      : null,
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                ),
+                IconButton(
+                  tooltip: 'Menu',
+                  onPressed: _menu,
+                  icon: const Icon(Icons.menu_rounded, size: 28),
+                ),
+                IconButton(
+                  tooltip: '${browser.tabs.length} open tabs',
+                  onPressed: _showTabs,
+                  icon: Container(
+                    width: 24,
+                    height: 26,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        width: 1.8,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
-                      child: Text(
-                        '${browser.tabs.length}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${browser.tabs.length}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Home',
-                    onPressed: browser.home,
-                    icon: const Icon(Icons.home_outlined, size: 27),
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  tooltip: 'Home',
+                  onPressed: browser.home,
+                  icon: const Icon(Icons.home_outlined, size: 27),
+                ),
+              ],
             ),
           ),
         ),
