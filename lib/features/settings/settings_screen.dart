@@ -200,6 +200,18 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               SettingsRow(
+                icon: Icons.smart_display_outlined,
+                title: 'Auto-skip YouTube ads',
+                subtitle: 'Click Skip when it becomes available',
+                trailing: Switch(
+                  value: browser.youtubeAutoSkipAds,
+                  onChanged: (value) {
+                    store.setSetting('youtubeAutoSkipAds', value);
+                    browser.updateSettings();
+                  },
+                ),
+              ),
+              SettingsRow(
                 icon: Icons.layers_clear_outlined,
                 title: 'Reset hidden elements',
                 subtitle: 'Show items you manually hid',

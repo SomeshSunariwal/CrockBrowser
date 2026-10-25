@@ -6,6 +6,7 @@ import '../../core/storage/browser_store.dart';
 import '../../shared/widgets/crock_logo.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import 'download_controller.dart';
+import 'download_file_type.dart';
 import 'download_feedback.dart';
 import 'download_sheet.dart';
 import '../files/files_screen.dart';
@@ -259,6 +260,10 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
 
   Widget _task(Map<String, dynamic> task) {
     final state = task['state'] as String;
+    final fileType = downloadFileType(
+      task['name']?.toString() ?? '',
+      task['mime']?.toString() ?? '',
+    );
     final bytes = (task['bytes'] as num? ?? 0),
         total = (task['total'] as num? ?? -1);
     final running = state == 'running', complete = state == 'complete';
@@ -291,20 +296,14 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Container(
+                  SizedBox(
                     width: 40,
                     height: 40,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                     child: Icon(
-                      complete
-                          ? Icons.check_circle_outline_rounded
-                          : Icons.insert_drive_file_outlined,
+                      fileType.icon,
+                      semanticLabel: fileType.label,
                       color: Theme.of(context).colorScheme.primary,
-                      size: 21,
+                      size: 30,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -490,7 +489,9 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       const SizedBox(height: 2),
                       Text(
                         running
-                            ? '${byteLabel(task['speed'] as num? ?? 0)}/s'
+                            ? ((task['phase'] as String? ?? '').isNotEmpty
+                                  ? task['phase'] as String
+                                  : '${byteLabel(task['speed'] as num? ?? 0)}/s')
                             : state[0].toUpperCase() + state.substring(1),
                         maxLines: 1,
                         style: TextStyle(

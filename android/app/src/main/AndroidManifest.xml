@@ -14,7 +14,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application android:label="Crock Browser" android:name=".CrockApplication"
         android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"
-        android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:usesCleartextTraffic="true" android:enableOnBackInvokedCallback="true">
+        android:allowBackup="false" android:supportsRtl="false" android:dataExtractionRules="@xml/data_extraction_rules" android:usesCleartextTraffic="true" android:enableOnBackInvokedCallback="true">
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop"
             android:theme="@style/LaunchTheme" android:hardwareAccelerated="true" android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">

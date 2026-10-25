@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/browser_tab.dart';
+import '../../core/theme/animation_timings.dart';
 import '../browser/browser_controller.dart';
 import 'widgets/browser_tab_card.dart';
 import 'widgets/tab_window_transition.dart';
@@ -398,9 +399,9 @@ class _TabSwipeDismissibleState extends State<_TabSwipeDismissible>
     _closing = dismiss;
     _begin = _offset;
     _target = dismiss ? Offset(_extent, 0) : Offset.zero;
-    _motion.duration = Duration(
-      milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 220,
-    );
+    _motion.duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : AnimationTimings.tabSwipe;
     try {
       await _motion.forward(from: 0).orCancel;
     } on TickerCanceled {

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/animation_timings.dart';
+
 class CrockNotification {
   const CrockNotification(this.message, {this.actionLabel, this.onAction});
   final String message;
@@ -75,8 +77,12 @@ class _CrockNotificationHostState extends State<CrockNotificationHost> {
           child: Offstage(
             offstage: crockNotificationObscured.value,
             child: AnimatedSwitcher(
-              duration: Duration(milliseconds: reduceMotion ? 0 : 240),
-              reverseDuration: Duration(milliseconds: reduceMotion ? 0 : 180),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : AnimationTimings.notificationSlideIn,
+              reverseDuration: reduceMotion
+                  ? Duration.zero
+                  : AnimationTimings.notificationSlideOut,
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (child, animation) => FadeTransition(
@@ -186,9 +192,9 @@ class _SwipeNotificationState extends State<_SwipeNotification> {
     key: const ValueKey('notification-swipe'),
     direction: DismissDirection.up,
     resizeDuration: null,
-    movementDuration: Duration(
-      milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 180,
-    ),
+    movementDuration: MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : AnimationTimings.notificationSwipe,
     dismissThresholds: const {DismissDirection.up: .25},
     onUpdate: (details) =>
         setState(() => _opacity = 1 - details.progress.clamp(0.0, 1.0)),

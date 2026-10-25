@@ -38,6 +38,7 @@ class BrowserController extends ChangeNotifier {
   int selected = 0;
   bool _tabOverviewVisible = false;
   BrowserTab get current => tabs[selected];
+  Rect? get currentViewportBounds => _thumbnailBounds[current.id]?.call();
   bool isTabActive(BrowserTab tab) =>
       !_tabOverviewVisible && tab == current && !tab.atHome;
 
@@ -67,6 +68,13 @@ class BrowserController extends ChangeNotifier {
   }
 
   bool get privateMode => store.privateMode;
+  // Keep the previous switch preference when upgrading to the skip-only feature.
+  bool get youtubeAutoSkipAds =>
+      store.setting(
+        'youtubeAutoSkipAds',
+        store.setting('youtubeAdBlock', false),
+      ) ==
+      true;
   bool get darkTheme {
     final legacy = store.setting('darkTheme', false) == true;
     return switch (store.setting('themeMode', legacy ? 'dark' : 'system')) {
@@ -138,6 +146,27 @@ class BrowserController extends ChangeNotifier {
   Future<dynamic> page(String method, [Map<String, dynamic>? args]) async =>
       _channels[current.id]?.invokeMethod(method, args);
 
+  Future<void> preservePagePositionDuring(
+    Future<void> Function() motion,
+  ) async {
+    // Retain this channel so switching tabs cannot leave the old view pinned.
+    final channel = _channels[current.id];
+    await channel?.invokeMethod('preserveScrollOnResize', {'enabled': true});
+    try {
+      await motion();
+    } finally {
+      try {
+        await channel?.invokeMethod('preserveScrollOnResize', {
+          'enabled': false,
+        });
+      } on PlatformException {
+        // The tab may have closed during the animation.
+      } on MissingPluginException {
+        // The platform view has already been disposed.
+      }
+    }
+  }
+
   void userScroll(BrowserTab tab, double delta) {
     if (tab != current ||
         tab.atHome ||
@@ -161,6 +190,10 @@ class BrowserController extends ChangeNotifier {
     switch (event['type']) {
       case 'loginSuggestion':
         if (!privateMode && tab == current && !current.atHome) {
+          events.add(event);
+        }
+      case 'youtubeDownload':
+        if (tab != null && tab == current && isTabActive(tab)) {
           events.add(event);
         }
       case 'favicon':
@@ -370,6 +403,7 @@ class BrowserController extends ChangeNotifier {
         'font': store.setting('font', 100),
         'darkTheme': darkTheme,
         'adBlock': store.setting('adBlock', false),
+        'youtubeAutoSkipAds': youtubeAutoSkipAds,
         'offerSavePasswords': store.setting('offerSavePasswords', true),
         'passwordPromptBlockedOrigins': store.setting(
           'passwordPromptBlockedOrigins',

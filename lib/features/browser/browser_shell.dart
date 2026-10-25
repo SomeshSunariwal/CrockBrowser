@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
 import '../../core/theme/crock_theme.dart';
+import '../../core/theme/animation_timings.dart';
 import '../../shared/widgets/feature_scaffold.dart';
 import '../downloads/download_controller.dart';
 import '../downloads/download_feedback.dart';
+import '../downloads/youtube_quality_menu.dart';
 import '../downloads/download_sheet.dart';
 import '../downloads/downloads_screen.dart';
 import '../files/files_screen.dart';
@@ -60,9 +63,13 @@ class _BrowserShellState extends State<BrowserShell>
   late final AnimationController _addressMotion;
   final _addressContentKey = GlobalKey();
   double _downwardScroll = 0;
+  double? _addressScrollThreshold;
+  double _upwardScroll = 0;
+  bool _addressHideCommitted = false;
   String? _addressTab;
-  bool _addressWasLoading = false;
+  String? _addressPage;
   bool _openingTabs = false;
+  bool _youtubeMenuOpen = false;
   final _tabToolbarMotion = ProxyAnimation(const AlwaysStoppedAnimation(0));
   @override
   BrowserStore get store => widget.store;
@@ -72,7 +79,8 @@ class _BrowserShellState extends State<BrowserShell>
     _addressMotion = AnimationController(
       vsync: this,
       value: 1,
-      duration: const Duration(milliseconds: 240),
+      duration: AnimationTimings.addressBarSlideIn,
+      reverseDuration: AnimationTimings.addressBarSlideOut,
     );
     addressFocus.addListener(_addressFocused);
     WidgetsBinding.instance.addObserver(this);
@@ -87,6 +95,50 @@ class _BrowserShellState extends State<BrowserShell>
       if (widget.openDownloads) _tool('downloads');
       _applyDevice();
     });
+  }
+
+  Future<void> _showYouTubeDownload(Map<String, dynamic> event) async {
+    if (_youtubeMenuOpen ||
+        !mounted ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    _youtubeMenuOpen = true;
+    try {
+      Rect? anchor;
+      final bounds = browser.currentViewportBounds;
+      final raw = event['anchor'];
+      if (bounds != null && raw is Map) {
+        final coordinates = [
+          'left',
+          'top',
+          'width',
+          'height',
+        ].map((key) => raw[key]).toList();
+        if (coordinates.every((value) => value is num && value.isFinite)) {
+          final values = coordinates
+              .map((value) => (value as num).toDouble().clamp(0.0, 1.0))
+              .toList();
+          final scale = View.of(context).devicePixelRatio;
+          anchor = Rect.fromLTWH(
+            (bounds.left + values[0] * bounds.width) / scale,
+            (bounds.top + values[1] * bounds.height) / scale,
+            values[2] * bounds.width / scale,
+            values[3] * bounds.height / scale,
+          );
+        }
+      }
+      await showYouTubeQualityMenu(
+        context,
+        url: event['url'] as String,
+        downloads: downloads,
+        store: store,
+        anchor: anchor,
+        onView: () => _tool('downloads'),
+      );
+    } finally {
+      _youtubeMenuOpen = false;
+    }
   }
 
   Future<void> _applyDevice() async {
@@ -134,21 +186,39 @@ class _BrowserShellState extends State<BrowserShell>
           return;
         }
         final delta = (event['deltaY'] as num? ?? 0).toDouble();
-        final y = (event['y'] as num? ?? 0).toDouble();
-        if (delta < 0 || (y <= 0 && event['source'] != 'touch')) {
+        if (!delta.isFinite || delta == 0) return;
+        if (delta < 0) {
+          // Resizing the viewport can emit reverse inertia without an upward gesture.
+          if (event['source'] != 'touch') return;
+          // Tiny direction changes during a slow drag should not reopen the bar.
+          _upwardScroll -= delta;
+          if (_upwardScroll < 4) return;
           _downwardScroll = 0;
+          _addressScrollThreshold = null;
           _showAddressBar();
         } else {
-          final previous = (_downwardScroll - 48).clamp(0.0, double.infinity);
+          _upwardScroll = 0;
+          if (_addressHideCommitted) return;
+          final threshold = _addressScrollThreshold ??=
+              _visiblePageHeight() * (2 / 3);
+          final previous = (_downwardScroll - threshold).clamp(
+            0.0,
+            double.infinity,
+          );
           _downwardScroll += delta;
           final movement =
-              (_downwardScroll - 48).clamp(0.0, double.infinity) - previous;
+              (_downwardScroll - threshold).clamp(0.0, double.infinity) -
+              previous;
           if (movement > 0) {
             final height =
                 _addressContentKey.currentContext?.size?.height ?? 52;
             _addressMotion.stop();
             _addressMotion.value = (_addressMotion.value - movement / height)
                 .clamp(0.0, 1.0);
+            if (_addressMotion.value <= .8) {
+              _addressHideCommitted = true;
+              _hideAddressBar();
+            }
           }
         }
       case 'loginSuggestion':
@@ -166,6 +236,8 @@ class _BrowserShellState extends State<BrowserShell>
         );
       case 'download':
         showDownloadSheet(context, downloads, store, event);
+      case 'youtubeDownload':
+        _showYouTubeDownload(event);
       case 'navigate':
         if (event['screen'] == 'downloads') _tool('downloads');
       case 'message':
@@ -188,7 +260,19 @@ class _BrowserShellState extends State<BrowserShell>
     if (addressFocus.hasFocus) _showAddressBar();
   }
 
+  double _visiblePageHeight() {
+    final bounds = browser.currentViewportBounds;
+    if (bounds != null && bounds.height > 0) {
+      return bounds.height / View.of(context).devicePixelRatio;
+    }
+    return (MediaQuery.sizeOf(context).height -
+            MediaQuery.paddingOf(context).vertical -
+            (_addressContentKey.currentContext?.size?.height ?? 52))
+        .clamp(1.0, double.infinity);
+  }
+
   void _showAddressBar() {
+    _addressHideCommitted = false;
     if (_addressMotion.value == 1) return;
     if (_addressMotion.isAnimating &&
         _addressMotion.status == AnimationStatus.forward) {
@@ -199,9 +283,39 @@ class _BrowserShellState extends State<BrowserShell>
     } else {
       _addressMotion.animateTo(
         1,
-        duration: const Duration(milliseconds: 240),
+        duration: AnimationTimings.addressBarSlideIn,
         curve: Curves.easeOutCubic,
       );
+    }
+  }
+
+  Future<void> _hideAddressBar() async {
+    if (_addressMotion.value == 0) return;
+    final tabId = browser.current.id;
+    try {
+      await browser.preservePagePositionDuring(() async {
+        if (!mounted || !_addressHideCommitted || browser.current.id != tabId) {
+          return;
+        }
+        if (MediaQuery.disableAnimationsOf(context)) {
+          _addressMotion.value = 0;
+        } else {
+          await _addressMotion
+              .animateBack(
+                0,
+                duration: AnimationTimings.addressBarSlideOut,
+                curve: Curves.easeInQuad,
+              )
+              .orCancel;
+        }
+        await WidgetsBinding.instance.endOfFrame;
+      });
+    } on TickerCanceled {
+      // An upward gesture or navigation interrupted the automatic slide.
+    } on PlatformException {
+      // The native page may close while entering or leaving tab overview.
+    } on MissingPluginException {
+      // Its platform view is no longer attached.
     }
   }
 
@@ -231,12 +345,12 @@ class _BrowserShellState extends State<BrowserShell>
       await browser.setTabOverviewVisible(true);
       if (mounted) {
         final route = PageRouteBuilder<void>(
-          transitionDuration: Duration(
-            milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 280,
-          ),
-          reverseTransitionDuration: Duration(
-            milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 350,
-          ),
+          transitionDuration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : AnimationTimings.tabOverviewOpen,
+          reverseTransitionDuration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : AnimationTimings.tabOverviewClose,
           pageBuilder: (_, _, _) => TabsScreen(browser: browser),
           transitionsBuilder: (_, animation, _, child) => FadeTransition(
             opacity: CurvedAnimation(
@@ -288,16 +402,20 @@ class _BrowserShellState extends State<BrowserShell>
     listenable: Listenable.merge([browser, store]),
     builder: (context, _) {
       final tab = browser.current;
+      final page = tab.url.split('#').first;
       if (_addressTab != tab.id ||
           tab.atHome ||
-          (tab.loading && !_addressWasLoading) ||
+          _addressPage != page ||
           store.setting('addressBarMode', 'static') != 'dynamic') {
         _addressTab = tab.id;
+        _addressPage = page;
         _addressMotion.stop();
         _addressMotion.value = 1;
         _downwardScroll = 0;
+        _addressScrollThreshold = null;
+        _upwardScroll = 0;
+        _addressHideCommitted = false;
       }
-      _addressWasLoading = tab.loading;
       if (!addressFocus.hasFocus && address.text != tab.url) {
         address.text = tab.url;
       }

@@ -10,6 +10,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url = uri("https://jitpack.io")
+            content { includeGroup("com.github.TeamNewPipe") }
+        }
         ivy {
             name = "FrostWireOfficialReleases"
             url = uri("https://github.com/frostwire/frostwire-jlibtorrent/releases/download/release/2.0.12.9")
