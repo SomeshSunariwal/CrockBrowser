@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 /// Icons come from the website itself, without a third-party favicon service.
 abstract final class SiteIcons {
   static final changes = ValueNotifier<int>(0);
+  static String? _updatedOrigin;
+  static String? get updatedOrigin => _updatedOrigin;
   static final _cache = <String, (DateTime, Future<Uint8List?>)>{};
   static final _bundled = <String, Future<Uint8List?>>{};
   static const _limit = 512 * 1024;
@@ -23,6 +25,7 @@ abstract final class SiteIcons {
     }
     if (_cache.length >= 128) _cache.remove(_cache.keys.first);
     _cache[uri.origin] = (DateTime.now(), Future.value(png));
+    _updatedOrigin = uri.origin;
     changes.value++;
   }
 

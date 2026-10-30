@@ -42,7 +42,7 @@ class DownloadController extends ChangeNotifier {
   final _completed = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get completions => _completed.stream;
   final _completedIds = <String>{};
-  bool _hasSnapshot = false;
+  bool _hasSnapshot = false, _disposed = false;
 
   void _applySnapshot(List<Map<String, dynamic>> rows) {
     tasks = rows;
@@ -58,13 +58,17 @@ class DownloadController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    if (_disposed) return;
     final version = ++_snapshotVersion;
     try {
       final rows = await NativeBridge.instance.list('downloads.list');
-      if (version == _snapshotVersion) _applySnapshot(rows);
+      if (_disposed || version != _snapshotVersion) return;
+      _applySnapshot(rows);
     } catch (error) {
+      if (_disposed || version != _snapshotVersion) return;
       lastError = error.toString();
     }
+    if (_disposed) return;
     loading = false;
     notifyListeners();
   }
@@ -123,6 +127,8 @@ class DownloadController extends ChangeNotifier {
       );
   @override
   void dispose() {
+    _disposed = true;
+    _snapshotVersion++;
     _events.cancel();
     _completed.close();
     super.dispose();

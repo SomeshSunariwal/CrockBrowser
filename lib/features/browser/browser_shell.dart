@@ -11,6 +11,7 @@ import '../../core/theme/crock_theme.dart';
 import '../../core/theme/animation_timings.dart';
 import '../../core/theme/app_motion.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/crock_switch.dart';
 import '../downloads/download_controller.dart';
 import '../downloads/download_feedback.dart';
 import '../downloads/youtube_quality_menu.dart';
@@ -58,6 +59,7 @@ class _BrowserShellState extends State<BrowserShell>
   @override
   final downloads = DownloadController();
   late final loginPrompts = LoginSavePrompt(store);
+  late final _changes = Listenable.merge([browser, store]);
   late final StreamSubscription<Map<String, dynamic>> events;
   late final StreamSubscription<Map<String, dynamic>> _completedDownloads;
   final address = TextEditingController(), addressFocus = FocusNode();
@@ -417,6 +419,25 @@ class _BrowserShellState extends State<BrowserShell>
     switch (action) {
       case 'back':
         browser.back();
+      case 'toggleBookmark':
+        final bookmarks = store.readRows('bookmarks');
+        final saved = bookmarks.any(
+          (bookmark) => bookmark['url'] == browser.current.url,
+        );
+        if (saved) {
+          store.setRows(
+            'bookmarks',
+            bookmarks
+                .where((bookmark) => bookmark['url'] != browser.current.url)
+                .toList(),
+          );
+        } else {
+          _bookmark();
+        }
+      case 'addBookmark':
+        _bookmark();
+      case 'bookmarks':
+        _tool('bookmarks');
       case 'refresh':
         browser.page('reload');
       case 'find':
@@ -440,7 +461,7 @@ class _BrowserShellState extends State<BrowserShell>
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([browser, store]),
+    listenable: _changes,
     builder: (context, _) {
       final tab = browser.current;
       final page = tab.url.split('#').first;
@@ -485,6 +506,7 @@ class _BrowserShellState extends State<BrowserShell>
                         controller: address,
                         focusNode: addressFocus,
                         url: tab.url,
+                        store: store,
                         onHome: browser.home,
                         onSubmit: _open,
                         onMenuSelected: _overflowAction,
@@ -717,7 +739,7 @@ class _BrowserShellState extends State<BrowserShell>
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       border: Border.all(
-                        width: 1.8,
+                        width: 1,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                       borderRadius: BorderRadius.circular(6),

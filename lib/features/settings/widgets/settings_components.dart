@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/crock_theme.dart';
+import '../../../shared/widgets/crock_dropdown.dart';
+import '../../../shared/widgets/compact_list_row.dart';
 
 class SettingsSection extends StatelessWidget {
   const SettingsSection({
@@ -15,7 +17,7 @@ class SettingsSection extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(4, 22, 4, 9),
+        padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
         child: Text(
           title,
           style: TextStyle(
@@ -26,6 +28,7 @@ class SettingsSection extends StatelessWidget {
         ),
       ),
       Card(
+        clipBehavior: Clip.antiAlias,
         child: Column(
           children: [
             for (var i = 0; i < children.length; i++) ...[
@@ -74,49 +77,91 @@ class SettingsRow extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final controlBelow =
-          trailing != null &&
-          (constraints.maxWidth < 320 ||
-              MediaQuery.textScalerOf(context).scale(14) > 17);
-      return ListTile(
-        minLeadingWidth: 34,
-        horizontalTitleGap: 12,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-        leading: SettingsIcon(icon),
-        title: Text(title, style: Theme.of(context).textTheme.titleMedium),
-        subtitle: subtitle == null && !controlBelow
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (subtitle != null)
-                      Text(
-                        subtitle!,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    if (controlBelow)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: trailing!,
-                      ),
-                  ],
-                ),
-              ),
-        trailing: controlBelow
-            ? null
-            : trailing ??
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-        onTap: onTap,
-      );
-    },
+  Widget build(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(13) / 13;
+    return CompactListRow(
+      minHeight: 64 * (scale > 1 ? scale : 1),
+      trailingWidth: null,
+      trailingHeight: null,
+      leadingWidth: 34,
+      titleGap: 10,
+      leading: SettingsIcon(icon),
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing:
+          trailing ??
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+      onTap: onTap,
+    );
+  }
+}
+
+class SettingsControlBox extends StatelessWidget {
+  const SettingsControlBox({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 144,
+    constraints: const BoxConstraints(minHeight: 34),
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(
+        color: Theme.of(context).colorScheme.outlineVariant,
+        width: 1,
+      ),
+    ),
+    child: DefaultTextStyle.merge(
+      style: const TextStyle(fontSize: 12),
+      child: child,
+    ),
+  );
+}
+
+/// A single layout for the settings page's compact select controls.
+class SettingsDropdown extends StatelessWidget {
+  const SettingsDropdown({
+    super.key,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.icons,
+  });
+  final String value;
+  final Map<String, String> options;
+  final ValueChanged<String> onChanged;
+  final Map<String, IconData>? icons;
+  @override
+  Widget build(BuildContext context) => SettingsControlBox(
+    child: CrockDropdownButton<String>(
+      value: options.containsKey(value) ? value : options.keys.first,
+      isDense: true,
+      isExpanded: true,
+      style: TextStyle(
+        fontSize: 12,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+      itemIcons: icons,
+      items: [
+        for (final entry in options.entries)
+          DropdownMenuItem(
+            value: entry.key,
+            child: Text(
+              entry.value,
+              style: const TextStyle(fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
+    ),
   );
 }

@@ -215,7 +215,7 @@ mixin _BrowserActions on State<BrowserShell> {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            SwitchListTile(
+            CrockSwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Desktop site'),
               value: browser.current.desktop,
@@ -256,6 +256,11 @@ mixin _BrowserActions on State<BrowserShell> {
 
   void _bookmark() {
     if (!_needPage()) return;
+    if (store
+        .readRows('bookmarks')
+        .any((bookmark) => bookmark['url'] == browser.current.url)) {
+      return;
+    }
     store.add('bookmarks', {
       'id': DateTime.now().microsecondsSinceEpoch.toString(),
       'title': browser.current.title,
@@ -362,7 +367,7 @@ mixin _BrowserActions on State<BrowserShell> {
     await showCrockDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
+        builder: (context, setLocal) => CrockDialog(
           title: const Text('Meta search'),
           content: SingleChildScrollView(
             child: Column(
@@ -374,7 +379,7 @@ mixin _BrowserActions on State<BrowserShell> {
                 ),
                 const SizedBox(height: 10),
                 ...store
-                    .rows('engines')
+                    .readRows('engines')
                     .map(
                       (engine) => CheckboxListTile(
                         contentPadding: EdgeInsets.zero,

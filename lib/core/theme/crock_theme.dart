@@ -21,8 +21,8 @@ abstract final class CrockTheme {
   static Color subtleSurfaceOf(BuildContext context) =>
       Theme.of(context).colorScheme.surfaceContainerLow;
 
-  static ThemeData get light => _build(dark: false);
-  static ThemeData get dark => _build(dark: true);
+  static final ThemeData light = _build(dark: false);
+  static final ThemeData dark = _build(dark: true);
 
   static ThemeData _build({required bool dark}) {
     const darkInk = Color(0xFFF2F2F2);
@@ -134,7 +134,15 @@ abstract final class CrockTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: blue, width: 1.5),
+          borderSide: const BorderSide(color: blue, width: 1),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.error, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.error, width: 1),
         ),
       ),
       cardTheme: CardThemeData(
@@ -154,20 +162,6 @@ abstract final class CrockTheme {
         thumbColor: blue,
         overlayColor: blue.withValues(alpha: .08),
         trackHeight: 5,
-      ),
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith(
-          (states) =>
-              states.contains(WidgetState.selected) ? Colors.white : muted,
-        ),
-        trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? blue
-              : dark
-              ? darkLine
-              : const Color(0xFFEBF0F6),
-        ),
-        trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -201,8 +195,13 @@ abstract final class CrockTheme {
       popupMenuTheme: PopupMenuThemeData(
         color: surfaceColor,
         surfaceTintColor: Colors.transparent,
-        elevation: 6,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        elevation: 4,
+        shadowColor: scheme.shadow.withValues(alpha: .12),
+        menuPadding: const EdgeInsets.symmetric(vertical: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: lineColor, width: 1),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

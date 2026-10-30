@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 /// Controllers use elapsed time and display vsync; no frame count or Hz target.
 abstract final class AppMotion {
   static const Curve curve = Curves.easeInOut;
-  static const style = AnimationStyle(curve: curve, reverseCurve: curve);
 }
 
 class EasyEasePageTransitionsBuilder extends PageTransitionsBuilder {

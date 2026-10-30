@@ -23,6 +23,7 @@ class SiteIcon extends StatefulWidget {
 
 class _SiteIconState extends State<SiteIcon> {
   late Future<Uint8List?> icon;
+  String? _origin;
   @override
   void initState() {
     super.initState();
@@ -31,7 +32,7 @@ class _SiteIconState extends State<SiteIcon> {
   }
 
   void _refresh() {
-    if (mounted) setState(_load);
+    if (mounted && _origin == SiteIcons.updatedOrigin) setState(_load);
   }
 
   @override
@@ -50,6 +51,13 @@ class _SiteIconState extends State<SiteIcon> {
   }
 
   void _load() {
+    final uri = Uri.tryParse(widget.url);
+    _origin =
+        uri != null &&
+            const ['http', 'https'].contains(uri.scheme) &&
+            uri.host.isNotEmpty
+        ? uri.origin
+        : null;
     icon = SiteIcons.load(widget.url, allowNetwork: widget.allowNetwork);
   }
 

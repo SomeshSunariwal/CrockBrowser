@@ -1,4 +1,5 @@
-import '../../core/theme/app_motion.dart';
+import '../../shared/widgets/crock_switch.dart';
+import '../../shared/widgets/crock_dropdown.dart';
 
 import 'dart:typed_data';
 
@@ -132,7 +133,7 @@ class _FilesScreenState extends State<FilesScreen> {
             ),
           ),
           if (widget.media)
-            SwitchListTile(
+            CrockSwitchListTile(
               title: const Text('Include device media'),
               subtitle: const Text(
                 'Grant access only when you want to browse device media.',
@@ -226,22 +227,24 @@ class _FilesScreenState extends State<FilesScreen> {
                             onTap: () => _open(file),
                             trailing: device
                                 ? null
-                                : PopupMenuButton<String>(
-                                    popUpAnimationStyle: AppMotion.style,
+                                : CrockPopupMenuButton<String>(
                                     onSelected: (action) =>
                                         _action(file, action),
                                     itemBuilder: (context) => [
                                       if (!directory)
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'share',
                                           child: Text('Share'),
                                         ),
                                       if (!directory)
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'export',
                                           child: Text('Save a copy…'),
                                         ),
                                       const PopupMenuItem(
+                                        height: 40,
                                         value: 'rename',
                                         child: Text('Rename'),
                                       ),
@@ -250,16 +253,19 @@ class _FilesScreenState extends State<FilesScreen> {
                                             file['name'].toString(),
                                           ))
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'extract',
                                           child: Text('Extract archive'),
                                         ),
                                       if (!directory)
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'private',
                                           child: Text('Copy to Private Space'),
                                         ),
                                       if (!directory)
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'delete',
                                           child: Text('Delete'),
                                         ),

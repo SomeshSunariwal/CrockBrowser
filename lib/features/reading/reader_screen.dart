@@ -1,3 +1,5 @@
+import '../../shared/widgets/crock_dropdown.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/platform/native_bridge.dart';
@@ -113,7 +115,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     await showCrockDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
+        builder: (context, setLocal) => CrockDialog(
           title: const Text('Translate on device'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -122,7 +124,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 'The selected language models download on first use. Text is translated on this device.',
               ),
               const SizedBox(height: 18),
-              DropdownButtonFormField<String>(
+              CrockDropdownButtonFormField<String>(
                 initialValue: source,
                 decoration: const InputDecoration(labelText: 'From'),
                 items: languages.entries
@@ -134,7 +136,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 onChanged: (v) => setLocal(() => source = v ?? 'en'),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
+              CrockDropdownButtonFormField<String>(
                 initialValue: target,
                 decoration: const InputDecoration(labelText: 'To'),
                 items: languages.entries

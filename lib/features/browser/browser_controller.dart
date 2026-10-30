@@ -12,7 +12,7 @@ import '../../core/services/site_icons.dart';
 class BrowserController extends ChangeNotifier {
   BrowserController(this.store) {
     if (!store.privateMode && store.setting('restoreTabs', true) == true) {
-      tabs.addAll(store.rows('tabs').map(BrowserTab.fromMap));
+      tabs.addAll(store.readRows('tabs').map(BrowserTab.fromMap));
     }
     if (tabs.isEmpty) tabs.add(BrowserTab());
     selected = (store.setting('selectedTab', 0) as int).clamp(
@@ -109,7 +109,7 @@ class BrowserController extends ChangeNotifier {
   bool get youtubeAutoSkipAds =>
       store.setting(
         'youtubeAutoSkipAds',
-        store.setting('youtubeAdBlock', false),
+        store.setting('youtubeAdBlock', true),
       ) ==
       true;
   bool get darkTheme {
@@ -320,7 +320,7 @@ class BrowserController extends ChangeNotifier {
         (possible.host.contains('.') || possible.host == 'localhost')) {
       return possible.toString();
     }
-    final engines = store.rows('engines');
+    final engines = store.readRows('engines');
     final name = engine ?? store.setting('engine', 'google');
     final selected = engines.where((item) => item['id'] == name);
     final template = selected.isEmpty
@@ -448,7 +448,7 @@ class BrowserController extends ChangeNotifier {
       await channel.invokeMethod('settings', {
         'font': store.setting('font', 100),
         'darkTheme': darkTheme,
-        'adBlock': store.setting('adBlock', false),
+        'adBlock': store.setting('adBlock', true),
         'youtubeAutoSkipAds': youtubeAutoSkipAds,
         'offerSavePasswords': store.setting('offerSavePasswords', true),
         'passwordPromptBlockedOrigins': store.setting(

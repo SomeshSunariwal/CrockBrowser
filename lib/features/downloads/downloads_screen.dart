@@ -1,4 +1,5 @@
-import '../../core/theme/app_motion.dart';
+import '../../shared/widgets/crock_switch.dart';
+import '../../shared/widgets/crock_dropdown.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show listEquals;
@@ -34,32 +35,26 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.downloads,
     builder: (context, _) {
-      final tasks = widget.downloads.tasks
-          .where(
-            (task) =>
-                filter == 'all' ||
-                (filter == 'active' &&
-                    [
-                      'queued',
-                      'running',
-                      'retrying',
-                      'paused',
-                    ].contains(task['state'])) ||
-                (filter == 'complete' && task['state'] == 'complete') ||
-                (filter == 'failed' &&
-                    ['failed', 'cancelled'].contains(task['state'])),
-          )
-          .toList();
       const activeStates = {'queued', 'running', 'retrying', 'paused'};
-      final inProgressTasks = tasks
-          .where((task) => activeStates.contains(task['state']))
-          .toList();
-      final completedTasks = tasks
-          .where((task) => !activeStates.contains(task['state']))
-          .toList();
-      final active = widget.downloads.tasks
-          .where((t) => t['state'] == 'running')
-          .length;
+      final tasks = <Map<String, dynamic>>[];
+      final inProgressTasks = <Map<String, dynamic>>[];
+      final completedTasks = <Map<String, dynamic>>[];
+      var active = 0;
+      for (final task in widget.downloads.tasks) {
+        final state = task['state'];
+        if (state == 'running') active++;
+        final matches = switch (filter) {
+          'active' => activeStates.contains(state),
+          'complete' => state == 'complete',
+          'failed' => const {'failed', 'cancelled', 'error'}.contains(state),
+          _ => true,
+        };
+        if (!matches) continue;
+        tasks.add(task);
+        (activeStates.contains(state) ? inProgressTasks : completedTasks).add(
+          task,
+        );
+      }
       return FeatureScaffold(
         title: 'Downloads',
         actions: [
@@ -172,48 +167,49 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                     )
                   : RefreshIndicator(
                       onRefresh: widget.downloads.refresh,
-                      child: filter == 'all'
-                          ? ListView(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                12,
-                                16,
-                                32,
-                              ),
-                              children: [
-                                _sectionHeader(
-                                  title: 'In progress',
-                                  count: inProgressTasks.length,
-                                  expanded: _inProgressExpanded,
-                                  onTap: () => setState(() {
-                                    _inProgressExpanded = !_inProgressExpanded;
-                                  }),
-                                ),
-                                if (_inProgressExpanded)
-                                  ...inProgressTasks.map(_task),
-                                _sectionHeader(
-                                  title: 'Completed',
-                                  count: completedTasks.length,
-                                  expanded: _completedExpanded,
-                                  onTap: () => setState(() {
-                                    _completedExpanded = !_completedExpanded;
-                                  }),
-                                ),
-                                if (_completedExpanded)
-                                  ...completedTasks.map(_task),
-                              ],
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                16,
-                                16,
-                                32,
-                              ),
-                              itemCount: tasks.length,
-                              itemBuilder: (context, index) =>
-                                  _task(tasks[index]),
-                            ),
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: filter == 'all'
+                            ? 2 +
+                                  (_inProgressExpanded
+                                      ? inProgressTasks.length
+                                      : 0) +
+                                  (_completedExpanded
+                                      ? completedTasks.length
+                                      : 0)
+                            : tasks.length,
+                        itemBuilder: (context, index) {
+                          if (filter != 'all') return _task(tasks[index]);
+                          final activeCount = _inProgressExpanded
+                              ? inProgressTasks.length
+                              : 0;
+                          if (index == 0 || index == activeCount + 1) {
+                            final activeSection = index == 0;
+                            return _sectionHeader(
+                              title: activeSection
+                                  ? 'In progress'
+                                  : 'Completed',
+                              count: activeSection
+                                  ? inProgressTasks.length
+                                  : completedTasks.length,
+                              expanded: activeSection
+                                  ? _inProgressExpanded
+                                  : _completedExpanded,
+                              onTap: () => setState(() {
+                                if (activeSection) {
+                                  _inProgressExpanded = !_inProgressExpanded;
+                                } else {
+                                  _completedExpanded = !_completedExpanded;
+                                }
+                              }),
+                            );
+                          }
+                          return index <= activeCount
+                              ? _task(inProgressTasks[index - 1])
+                              : _task(completedTasks[index - activeCount - 2]);
+                        },
+                      ),
                     ),
             ),
           ],
@@ -345,8 +341,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                   SizedBox(
                     width: 40,
                     height: 40,
-                    child: PopupMenuButton<String>(
-                      popUpAnimationStyle: AppMotion.style,
+                    child: CrockPopupMenuButton<String>(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(
                         minWidth: 40,
@@ -359,11 +354,13 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                             task['torrent'] != true &&
                             isSupportedArchive(task['name'].toString()))
                           const PopupMenuItem(
+                            height: 40,
                             value: 'extract',
                             child: Text('Extract archive'),
                           ),
                         if (complete)
                           const PopupMenuItem(
+                            height: 40,
                             value: 'open',
                             child: Text('Open file'),
                           ),
@@ -371,6 +368,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                             task['stream'] != true &&
                             task['torrent'] != true)
                           const PopupMenuItem(
+                            height: 40,
                             value: 'share',
                             child: Text('Share file'),
                           ),
@@ -378,20 +376,24 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                             task['stream'] != true &&
                             task['torrent'] != true)
                           const PopupMenuItem(
+                            height: 40,
                             value: 'export',
                             child: Text('Save a copy…'),
                           ),
                         if (canRetry)
                           const PopupMenuItem(
+                            height: 40,
                             value: 'retry',
                             child: Text('Retry download'),
                           ),
                         if (!complete && !canRetry)
                           const PopupMenuItem(
+                            height: 40,
                             value: 'cancel',
                             child: Text('Cancel download'),
                           ),
                         const PopupMenuItem(
+                          height: 40,
                           value: 'remove',
                           child: Text('Remove download and local file'),
                         ),
@@ -620,7 +622,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                 onChanged: (value) =>
                     setLocal(() => concurrency = value.round()),
               ),
-              SwitchListTile(
+              CrockSwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Unmetered networks only'),
                 subtitle: const Text(

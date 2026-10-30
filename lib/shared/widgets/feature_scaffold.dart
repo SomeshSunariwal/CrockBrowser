@@ -1,3 +1,6 @@
+import 'crock_dialog.dart';
+export 'crock_dialog.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/animation_timings.dart';
@@ -94,7 +97,7 @@ Future<bool> confirmCrock(
 ) async =>
     await showCrockDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => CrockDialog(
         title: Text(title),
         content: Text(message),
         actions: [

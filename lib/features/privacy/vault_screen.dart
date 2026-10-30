@@ -119,7 +119,7 @@ class _VaultScreenState extends State<VaultScreen> {
                       } else {
                         await showCrockDialog<void>(
                           context: context,
-                          builder: (context) => AlertDialog(
+                          builder: (context) => CrockDialog(
                             title: Text(
                               row['origin'] as String? ?? 'Saved login',
                             ),

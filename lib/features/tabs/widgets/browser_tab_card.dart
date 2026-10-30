@@ -138,7 +138,7 @@ class BrowserTabCard extends StatelessWidget {
         color: selected
             ? CrockTheme.blue
             : Theme.of(context).colorScheme.outlineVariant,
-        width: selected ? 1.0 : 1,
+        width: 1,
       ),
     ),
     child: InkWell(
