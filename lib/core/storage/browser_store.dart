@@ -104,12 +104,25 @@ class BrowserStore extends ChangeNotifier {
     changed();
   }
 
-  void add(String key, Map<String, dynamic> row, {int? limit}) {
+  void add(
+    String key,
+    Map<String, dynamic> row, {
+    int? limit,
+    bool prepend = true,
+  }) {
     if (privateMode && (key == 'history' || key == 'tabs')) return;
-    final items = [
-      row,
-      ...readRows(key).where((item) => item['id'] != row['id']),
-    ];
+    final items = List<Map<String, dynamic>>.of(readRows(key));
+    final index = items.indexWhere((item) => item['id'] == row['id']);
+    if (!prepend && index >= 0) {
+      items[index] = row;
+    } else {
+      items.removeWhere((item) => item['id'] == row['id']);
+      if (prepend) {
+        items.insert(0, row);
+      } else {
+        items.add(row);
+      }
+    }
     setRows(key, limit == null ? items : items.take(limit).toList());
   }
 

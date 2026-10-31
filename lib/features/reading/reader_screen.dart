@@ -73,7 +73,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         if (busy) const LinearProgressIndicator(),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(26, 20, 26, 48),
+            padding: const EdgeInsets.fromLTRB(26, 8, 26, 48),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

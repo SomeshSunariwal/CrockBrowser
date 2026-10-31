@@ -259,7 +259,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
       }
     },
     trailing: CrockPopupMenuButton<String>(
-      onSelected: (action) => action == 'edit' ? _edit(item) : _remove(item),
+      onSelected: (action) {
+        switch (action) {
+          case 'dashboard':
+            _addToDashboard(item);
+          case 'edit':
+            _edit(item);
+          case 'remove':
+            _remove(item);
+        }
+      },
       itemBuilder: (context) => [
         if (bookmarks)
           const PopupMenuItem(
@@ -267,10 +276,33 @@ class _LibraryScreenState extends State<LibraryScreen> {
             value: 'edit',
             child: Text('Edit / move'),
           ),
+        if (bookmarks)
+          const PopupMenuItem(
+            height: 40,
+            value: 'dashboard',
+            child: Text('Add to Dashboard'),
+          ),
         const PopupMenuItem(height: 40, value: 'remove', child: Text('Remove')),
       ],
     ),
   );
+
+  void _addToDashboard(Map<String, dynamic> bookmark) {
+    final url = bookmark['url'] as String? ?? '';
+    if (url.isEmpty) return;
+    final existing = widget.store
+        .readRows('shortcuts')
+        .where((shortcut) => shortcut['url'] == url)
+        .firstOrNull;
+    final title = bookmark['title']?.toString().trim() ?? '';
+    // Append new shortcuts; updating one must preserve the dashboard order.
+    widget.store.add('shortcuts', {
+      'id': existing?['id'] ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      'title': title.isEmpty ? url : title,
+      'url': url,
+    }, prepend: false);
+    crockMessage(context, 'Added to Dashboard');
+  }
 
   Iterable<Widget> _itemGroups(
     BuildContext context,
@@ -298,38 +330,47 @@ class _LibraryScreenState extends State<LibraryScreen> {
     } else if (rows.isNotEmpty) {
       groups[''] = rows;
     }
-    for (final (index, group) in groups.entries.indexed) {
-      if (group.key.isNotEmpty) {
-        yield SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(4, index == 0 ? 0 : 12, 4, 8),
-            child: Text(
-              group.key,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-          ),
-        );
-      }
-      yield SliverCard(
-        sliver: SliverList.builder(
-          itemCount: group.value.length,
-          itemBuilder: (context, index) => CardListItem(
-            key: ValueKey(group.value[index]['id']),
-            index: index,
-            count: group.value.length,
-            child: _entry(group.value[index]),
-          ),
-        ),
-      );
-    }
+    // One lazy delegate across dates avoids eagerly mounting the first row of
+    // every date group, even when thousands of dates are off-screen.
+    final entries = <(String, Map<String, dynamic>?, int, int)>[
+      for (final group in groups.entries) ...[
+        if (group.key.isNotEmpty) (group.key, null, 0, 0),
+        for (final (index, row) in group.value.indexed)
+          ('', row, index, group.value.length),
+      ],
+    ];
+    yield SliverList.builder(
+      itemCount: entries.length,
+      itemBuilder: (context, index) {
+        final (label, row, groupIndex, count) = entries[index];
+        return row == null
+            ? Padding(
+                padding: EdgeInsets.fromLTRB(4, index == 0 ? 0 : 12, 4, 8),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            : CardListItem(
+                key: ValueKey(row['id']),
+                index: groupIndex,
+                count: count,
+                paintBackground: true,
+                child: _entry(row),
+              );
+      },
+    );
   }
 
   Future<void> _folder([Map<String, dynamic>? old]) async {
     final input = TextEditingController(text: old?['title'] as String? ?? '');
     final value = await showCrockDialog<String>(
       context: context,
-      builder: (context) => CrockEditorDialog(
-        title: old == null ? 'New folder' : 'Rename folder',
+      builder: (context) => CrockDialog(
+        title: Text(old == null ? 'New folder' : 'Rename folder'),
         content: CrockEditorField(
           label: 'Folder name',
           controller: input,
@@ -391,8 +432,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     await showCrockDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => CrockEditorDialog(
-          title: 'Edit bookmark',
+        builder: (context, setLocal) => CrockDialog(
+          title: Text('Edit bookmark'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

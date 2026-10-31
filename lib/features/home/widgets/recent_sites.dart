@@ -103,7 +103,7 @@ class _RecentSitesState extends State<RecentSites> {
                         color: colors.onSurfaceVariant,
                         size: 24,
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Sites you visit will appear here.',
@@ -119,7 +119,7 @@ class _RecentSitesState extends State<RecentSites> {
               : Column(
                   children: [
                     for (var i = 0; i < _sites.length; i++) ...[
-                      if (i > 0) const Divider(indent: 56, endIndent: 12),
+                      if (i > 0) const Divider(indent: 52, endIndent: 12),
                       _site(context, _sites[i]),
                     ],
                   ],

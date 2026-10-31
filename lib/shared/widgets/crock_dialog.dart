@@ -70,6 +70,9 @@ class CrockDialog extends StatelessWidget {
         ),
       ),
       child: Dialog(
+        // Follow Android's animated IME insets directly instead of restarting
+        // a second padding animation on each keyboard frame.
+        insetAnimationDuration: Duration.zero,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         backgroundColor: colors.surface,
         surfaceTintColor: Colors.transparent,

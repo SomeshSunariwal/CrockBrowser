@@ -190,6 +190,11 @@ class BrowserAddressBar extends StatelessWidget {
                   ('bookmarks', Icons.star_border_rounded, 'Bookmarks'),
                   ('history', Icons.history_rounded, 'History'),
                   ('downloads', Icons.download_rounded, 'Download'),
+                  (
+                    'saveOffline',
+                    Icons.offline_pin_outlined,
+                    'Save page offline',
+                  ),
                   ('find', Icons.search_rounded, 'Find in page'),
                 ])
                   PopupMenuItem(
@@ -250,16 +255,20 @@ class _BrowserMenuItem extends StatelessWidget {
           ),
         ),
       ),
-      const SizedBox(width: 12),
-      Text(
-        label,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurface,
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          height: 1.2,
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            height: 1.2,
+          ),
+          strutStyle: const StrutStyle(height: 1.2, forceStrutHeight: true),
         ),
-        strutStyle: const StrutStyle(height: 1.2, forceStrutHeight: true),
       ),
     ],
   );

@@ -33,7 +33,7 @@ class SearchEnginesScreen extends StatelessWidget {
         child: CustomScrollView(
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               sliver: SliverMainAxisGroup(
                 slivers: [
                   const SliverToBoxAdapter(
@@ -120,8 +120,8 @@ class SearchEnginesScreen extends StatelessWidget {
         );
     await showCrockDialog<void>(
       context: context,
-      builder: (context) => CrockEditorDialog(
-        title: old == null ? 'Add search engine' : 'Edit search engine',
+      builder: (context) => CrockDialog(
+        title: Text(old == null ? 'Add search engine' : 'Edit search engine'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

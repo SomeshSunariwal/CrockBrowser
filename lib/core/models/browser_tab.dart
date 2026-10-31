@@ -14,6 +14,8 @@ class BrowserTab {
   bool canBack = false;
   bool canForward = false;
   Uint8List? thumbnail;
+  (String, String, double, bool, bool, bool, bool) get pageState =>
+      (url, title, progress, failed, canBack, canForward, loading);
   Map<String, dynamic> toMap() => {
     'id': id,
     'url': url,

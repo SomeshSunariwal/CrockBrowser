@@ -79,6 +79,10 @@ abstract final class CrockTheme {
         },
       ),
       scaffoldBackgroundColor: backgroundColor,
+      listTileTheme: const ListTileThemeData(
+        horizontalTitleGap: 8,
+        minLeadingWidth: 24,
+      ),
       textTheme: base.textTheme
           .apply(bodyColor: foreground, displayColor: foreground)
           .copyWith(
@@ -104,6 +108,9 @@ abstract final class CrockTheme {
             ),
           ),
       appBarTheme: AppBarTheme(
+        toolbarHeight: 48,
+        leadingWidth: 52,
+        titleSpacing: 0,
         backgroundColor: backgroundColor,
         foregroundColor: foreground,
         titleTextStyle: TextStyle(

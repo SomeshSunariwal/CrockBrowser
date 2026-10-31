@@ -8,7 +8,9 @@ const tabPreviewCorners = BorderRadius.vertical(top: Radius.circular(16));
 const tabWindowCurve = AppMotion.curve;
 
 HeroFlightShuttleBuilder tabFlightFor(BrowserTab tab) =>
-    tab.atHome && tab.thumbnail == null
+    // Keep vector dashboard icons throughout the zoom. Enlarging the small
+    // card thumbnail and swapping to live artwork at the end causes a flash.
+    tab.atHome
     ? homeTabWindowFlight
     : (context, animation, direction, from, to) => tabPreviewFlight(
         context,

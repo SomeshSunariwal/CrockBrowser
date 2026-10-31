@@ -195,7 +195,7 @@ class BrowserTabCard extends StatelessWidget {
               child: Row(
                 children: [
                   const CrockLogo(size: 34),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

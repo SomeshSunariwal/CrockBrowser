@@ -94,7 +94,7 @@ class _DownloadSheetState extends State<_DownloadSheet> {
           const Row(
             children: [
               CrockLogo(size: 38),
-              SizedBox(width: 12),
+              SizedBox(width: 8),
               Text(
                 'New download',
                 style: TextStyle(fontSize: 23, fontWeight: FontWeight.w600),
@@ -125,7 +125,7 @@ class _DownloadSheetState extends State<_DownloadSheet> {
                 Icons.folder_outlined,
                 color: Theme.of(context).colorScheme.primary,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   widget.store.setting('downloadFolder', '').toString().isEmpty

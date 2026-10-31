@@ -13,7 +13,37 @@ abstract final class SiteIcons {
   static String? get updatedOrigin => _updatedOrigin;
   static final _cache = <String, (DateTime, Future<Uint8List?>)>{};
   static final _bundled = <String, Future<Uint8List?>>{};
+  static final _ready = <String, Uint8List>{};
   static const _limit = 512 * 1024;
+
+  static String? _bundle(Uri uri) => switch (uri.host.toLowerCase()) {
+    'google.com' || 'www.google.com' || 'm.google.com' => 'google',
+    'youtube.com' ||
+    'www.youtube.com' ||
+    'm.youtube.com' ||
+    'youtu.be' => 'youtube',
+    _ => null,
+  };
+
+  /// A newly mounted tab must paint cached icons on its very first frame.
+  static Uint8List? peek(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !['https', 'http'].contains(uri.scheme) ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
+      return null;
+    }
+    final bundled = _bundle(uri);
+    return _ready[bundled == null ? uri.origin : 'asset:$bundled'];
+  }
+
+  static void _keep(String key, Uint8List bytes) {
+    if (!_ready.containsKey(key) && _ready.length >= 128) {
+      _ready.remove(_ready.keys.first);
+    }
+    _ready[key] = bytes;
+  }
 
   static void remember(String url, Uint8List png) {
     final uri = Uri.tryParse(url);
@@ -25,6 +55,7 @@ abstract final class SiteIcons {
     }
     if (_cache.length >= 128) _cache.remove(_cache.keys.first);
     _cache[uri.origin] = (DateTime.now(), Future.value(png));
+    _keep(uri.origin, png);
     _updatedOrigin = uri.origin;
     changes.value++;
   }
@@ -37,18 +68,16 @@ abstract final class SiteIcons {
         uri.userInfo.isNotEmpty) {
       return Future.value();
     }
-    final bundled = switch (uri.host.toLowerCase()) {
-      'google.com' || 'www.google.com' || 'm.google.com' => 'google',
-      'youtube.com' ||
-      'www.youtube.com' ||
-      'm.youtube.com' ||
-      'youtu.be' => 'youtube',
-      _ => null,
-    };
+    final bundled = _bundle(uri);
     if (bundled != null) {
       return _bundled.putIfAbsent(bundled, () async {
         final data = await rootBundle.load('assets/site_icons/$bundled.png');
-        return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+        final bytes = data.buffer.asUint8List(
+          data.offsetInBytes,
+          data.lengthInBytes,
+        );
+        _keep('asset:$bundled', bytes);
+        return bytes;
       });
     }
     final origin = uri.origin;
@@ -59,7 +88,10 @@ abstract final class SiteIcons {
     }
     if (!allowNetwork) return Future.value();
     if (_cache.length >= 128) _cache.remove(_cache.keys.first);
-    final future = _load(Uri.parse(origin));
+    final future = _load(Uri.parse(origin)).then((bytes) {
+      if (bytes != null) _keep(origin, bytes);
+      return bytes;
+    });
     _cache[origin] = (DateTime.now(), future);
     return future;
   }

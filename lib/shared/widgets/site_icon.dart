@@ -87,6 +87,7 @@ class _SiteIconState extends State<SiteIcon> {
     child: ExcludeSemantics(
       child: FutureBuilder<Uint8List?>(
         future: icon,
+        initialData: SiteIcons.peek(widget.url),
         builder: (context, snapshot) => Center(
           child: snapshot.data == null
               ? fallback
@@ -95,6 +96,7 @@ class _SiteIconState extends State<SiteIcon> {
                   width: widget.size,
                   height: widget.size,
                   fit: BoxFit.contain,
+                  gaplessPlayback: true,
                   filterQuality: FilterQuality.medium,
                   errorBuilder: (_, error, stackTrace) => fallback,
                 ),

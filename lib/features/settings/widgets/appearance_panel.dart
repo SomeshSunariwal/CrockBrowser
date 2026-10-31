@@ -3,6 +3,8 @@ import '../../../shared/widgets/gradient_slider.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/platform/native_bridge.dart';
+import '../../../shared/widgets/selected_builder.dart';
+import 'expandable_settings_row.dart';
 import '../../../shared/widgets/feature_scaffold.dart';
 import '../../browser/browser_controller.dart';
 import 'settings_components.dart';
@@ -23,7 +25,8 @@ class AppearancePanel extends StatefulWidget {
 class _AppearancePanelState extends State<AppearancePanel> {
   BrowserController get browser => widget.browser;
   static const rotations = AppearancePanel.rotations;
-  bool _textExpanded = false, _brightnessExpanded = false;
+  double? _fontDraft, _brightnessDraft, _pendingBrightness;
+  Future<void>? _brightnessUpdate;
 
   Future<void> _device(BuildContext context, String key, Object value) async {
     try {
@@ -35,10 +38,26 @@ class _AppearancePanelState extends State<AppearancePanel> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SelectedBuilder<Object>(
+    listenable: browser.store,
+    select: () => (
+      browser.store.setting('font', 100),
+      browser.store.setting('brightness', -1),
+      browser.store.setting('themeMode', 'system'),
+      browser.store.setting('darkTheme', false),
+      browser.store.setting('addressBarMode', 'static'),
+      browser.store.setting('rotation', 'auto'),
+    ),
+    builder: (context, _) => _panel(context),
+  );
+
+  Widget _panel(BuildContext context) {
     final store = browser.store;
-    final font = (store.setting('font', 100) as num).clamp(70, 200).toDouble();
-    final brightness = (store.setting('brightness', -1) as num).toDouble();
+    final font =
+        _fontDraft ??
+        (store.setting('font', 100) as num).clamp(70, 200).toDouble();
+    final brightness =
+        _brightnessDraft ?? (store.setting('brightness', -1) as num).toDouble();
     final savedTheme = store.setting(
       'themeMode',
       store.setting('darkTheme', false) == true ? 'dark' : 'system',
@@ -73,80 +92,46 @@ class _AppearancePanelState extends State<AppearancePanel> {
           },
         ),
       ),
-      Column(
-        children: [
-          SettingsRow(
-            icon: Icons.text_fields_rounded,
-            title: 'Text size',
-            subtitle: 'Adjust webpage text size',
-            trailing: Icon(
-              _textExpanded
-                  ? Icons.expand_less_rounded
-                  : Icons.expand_more_rounded,
-              size: 20,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            onTap: () => setState(() => _textExpanded = !_textExpanded),
+      ExpandableSettingsRow(
+        icon: Icons.text_fields_rounded,
+        title: 'Text size',
+        subtitle: 'Adjust webpage text size',
+        builder: (context) => _sliderRow(
+          context,
+          slider: Slider(
+            key: const ValueKey('text-size-slider'),
+            min: 70,
+            max: 200,
+            value: font,
+            label: '${font.round()}%',
+            onChanged: (value) => setState(() => _fontDraft = value),
+            onChangeEnd: (value) => _setFont(value.round()),
           ),
-          if (_textExpanded)
-            _sliderRow(
-              context,
-              slider: Slider(
-                key: const ValueKey('text-size-slider'),
-                min: 70,
-                max: 200,
-                value: font,
-                label: '${font.round()}%',
-                onChanged: (value) {
-                  store.setSetting('font', value.round());
-                  setState(() {});
-                  browser.updateSettings();
-                },
-              ),
-              percentage: '${font.round()}%',
-              action: 'Reset',
-              onAction: () {
-                store.setSetting('font', 100);
-                setState(() {});
-                browser.updateSettings();
-              },
-            ),
-        ],
+          percentage: '${font.round()}%',
+          action: 'Reset',
+          onAction: () => _setFont(100),
+        ),
       ),
-      Column(
-        children: [
-          SettingsRow(
-            icon: Icons.brightness_6_outlined,
-            title: 'Brightness',
-            subtitle: 'Auto or custom screen brightness',
-            trailing: Icon(
-              _brightnessExpanded
-                  ? Icons.expand_less_rounded
-                  : Icons.expand_more_rounded,
-              size: 20,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            onTap: () =>
-                setState(() => _brightnessExpanded = !_brightnessExpanded),
+      ExpandableSettingsRow(
+        icon: Icons.brightness_6_outlined,
+        title: 'Brightness',
+        subtitle: 'Auto or custom screen brightness',
+        builder: (context) => _sliderRow(
+          context,
+          slider: Slider(
+            key: const ValueKey('brightness-slider'),
+            min: .05,
+            max: 1,
+            value: brightness < 0 ? .5 : brightness.clamp(.05, 1),
+            onChanged: (value) => _setBrightness(context, value),
           ),
-          if (_brightnessExpanded)
-            _sliderRow(
-              context,
-              slider: Slider(
-                key: const ValueKey('brightness-slider'),
-                min: .05,
-                max: 1,
-                value: brightness < 0 ? .5 : brightness.clamp(.05, 1),
-                onChanged: (value) => _setBrightness(context, value),
-              ),
-              percentage: brightness < 0
-                  ? 'Auto'
-                  : '${(brightness * 100).round()}%',
-              action: 'Auto',
-              actionSelected: brightness < 0,
-              onAction: () => _setBrightness(context, -1),
-            ),
-        ],
+          percentage: brightness < 0
+              ? 'Auto'
+              : '${(brightness * 100).round()}%',
+          action: 'Auto',
+          actionSelected: brightness < 0,
+          onAction: () => _setBrightness(context, -1),
+        ),
       ),
       SettingsRow(
         icon: Icons.screen_rotation_rounded,
@@ -167,11 +152,17 @@ class _AppearancePanelState extends State<AppearancePanel> {
     return Column(
       children: [
         for (var i = 0; i < rows.length; i++) ...[
-          if (i > 0) const Divider(indent: 56, endIndent: 12),
+          if (i > 0) const Divider(indent: 54, endIndent: 12),
           rows[i],
         ],
       ],
     );
+  }
+
+  void _setFont(int value) {
+    browser.store.setSetting('font', value);
+    setState(() => _fontDraft = null);
+    browser.updateSettings();
   }
 
   Widget _sliderRow(
@@ -249,8 +240,19 @@ class _AppearancePanelState extends State<AppearancePanel> {
     );
   }
 
-  Future<void> _setBrightness(BuildContext context, double value) async {
-    await _device(context, 'brightness', value);
-    if (mounted) setState(() {});
+  Future<void> _setBrightness(BuildContext context, double value) {
+    setState(() => _brightnessDraft = value);
+    _pendingBrightness = value;
+    return _brightnessUpdate ??= _applyBrightness(context)
+        .whenComplete(() => _brightnessUpdate = null);
+  }
+
+  Future<void> _applyBrightness(BuildContext context) async {
+    while (_pendingBrightness != null) {
+      final value = _pendingBrightness!;
+      _pendingBrightness = null;
+      await _device(context, 'brightness', value);
+    }
+    if (mounted) setState(() => _brightnessDraft = null);
   }
 }

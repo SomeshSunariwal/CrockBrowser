@@ -40,7 +40,7 @@ class _TabsScreenState extends State<TabsScreen> {
     }
     _openingTabId = widget.browser.current.id;
     final thumbnail = widget.browser.current.thumbnail;
-    if (!widget.browser.current.atHome && thumbnail != null) {
+    if (thumbnail != null) {
       await precacheImage(MemoryImage(thumbnail), context);
       if (!mounted) return;
     }
@@ -273,7 +273,7 @@ class _NewTabCard extends StatelessWidget {
                   : Row(
                       children: [
                         icon,
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 8),
                         Expanded(child: label),
                       ],
                     ),

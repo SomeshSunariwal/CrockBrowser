@@ -43,7 +43,7 @@ class ClipboardScreen extends StatelessWidget {
               detail: 'Tap + to explicitly save the current clipboard. Crock Browser does not monitor the clipboard in the background.',
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               itemCount: clips.length,
               itemBuilder: (context, index) => _clip(context, clips[index]),
             ),

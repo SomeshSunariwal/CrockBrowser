@@ -17,8 +17,8 @@ Future<void> editShortcut(
       url = TextEditingController(text: old?['url'] as String? ?? '');
   await showCrockDialog<void>(
     context: context,
-    builder: (context) => CrockEditorDialog(
-      title: old == null ? 'Add shortcut' : 'Edit shortcut',
+    builder: (context) => CrockDialog(
+      title: Text(old == null ? 'Add shortcut' : 'Edit shortcut'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -70,7 +70,7 @@ Future<void> editShortcut(
                   DateTime.now().microsecondsSinceEpoch.toString(),
               'title': title.text.trim(),
               'url': uri.toString(),
-            });
+            }, prepend: false);
             Navigator.pop(context);
           },
           child: const Text('Save'),
@@ -103,7 +103,7 @@ class ShortcutsScreen extends StatelessWidget {
           key: const PageStorageKey('home-shortcuts'),
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               sliver: SliverCard(
                 sliver: SliverReorderableList(
                   itemCount: rows.length,

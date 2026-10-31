@@ -59,6 +59,7 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
   private final FilesBridge files;
   private final VaultBridge vault;
   private final DeviceBridge device;
+  private final ProfileBridge profile;
   private final DownloadRepository downloads;
   private final ExecutorService io = Executors.newSingleThreadExecutor();
   private final ExecutorService videoIo = Executors.newSingleThreadExecutor();
@@ -98,6 +99,7 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
     files = new FilesBridge(activity);
     vault = new VaultBridge(activity, files);
     device = new DeviceBridge(activity);
+    profile = new ProfileBridge(activity, io);
     downloads = new DownloadRepository(activity);
     new MethodChannel(messenger, "croc/native").setMethodCallHandler(this);
     new EventChannel(messenger, "croc/events")
@@ -172,6 +174,10 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
       }
       if (method.equals("device.permissions")) {
         requestPermissions(args, result);
+        return;
+      }
+      if (method.equals("profile.pickPhoto")) {
+        profile.pick(result);
         return;
       }
       if (method.startsWith("device.") || method.startsWith("clipboard.")) {
@@ -502,6 +508,7 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
   }
 
   public boolean onActivityResult(int request, int code, Intent data) {
+    if (profile.onResult(request, code, data)) return true;
     if (files.onResult(request, code, data) || vault.onResult(request, code)) return true;
     if (request == 705) {
       if (fileCallback != null)
@@ -642,6 +649,7 @@ public final class HostChannel implements MethodChannel.MethodCallHandler {
   }
 
   public void dispose() {
+    profile.dispose();
     activity.unregisterReceiver(downloadReceiver);
     vault.lock();
     io.shutdown();

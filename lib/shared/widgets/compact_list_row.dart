@@ -11,7 +11,7 @@ class CompactListRow extends StatelessWidget {
     this.trailing,
     this.minHeight = 56,
     this.leadingWidth = 32,
-    this.titleGap = 12,
+    this.titleGap = 8,
     this.trailingWidth = 32,
     this.trailingHeight = 32,
   });

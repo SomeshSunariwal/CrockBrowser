@@ -28,7 +28,6 @@ captures/
 /tools/
 /analysis/
 /.tmp/
-.idea/
 .vscode/
 *.iml
 *.ipr

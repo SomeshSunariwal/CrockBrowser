@@ -244,7 +244,7 @@ class _YouTubeQualityMenuState extends State<_YouTubeQualityMenu> {
                                     size: 20,
                                     color: colors.primary,
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       format['label'] as String,

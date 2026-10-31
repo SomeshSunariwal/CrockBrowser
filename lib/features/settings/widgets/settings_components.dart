@@ -34,7 +34,7 @@ class SettingsSection extends StatelessWidget {
             for (var i = 0; i < children.length; i++) ...[
               if (i > 0)
                 const Padding(
-                  padding: EdgeInsets.only(left: 62),
+                  padding: EdgeInsets.only(left: 54),
                   child: Divider(),
                 ),
               children[i],
@@ -84,7 +84,7 @@ class SettingsRow extends StatelessWidget {
       trailingWidth: null,
       trailingHeight: null,
       leadingWidth: 34,
-      titleGap: 10,
+      titleGap: 8,
       leading: SettingsIcon(icon),
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle!),

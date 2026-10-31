@@ -6,6 +6,7 @@ import '../../core/storage/browser_store.dart';
 import '../../core/theme/crock_theme.dart';
 import '../../shared/widgets/crock_logo.dart';
 import '../../shared/widgets/site_icon.dart';
+import '../../shared/widgets/selected_builder.dart';
 import 'widgets/home_bookmarks.dart';
 import 'widgets/home_grid.dart';
 import 'widgets/recent_sites.dart';
@@ -27,6 +28,10 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final searchBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide(color: colors.outline.withValues(alpha: .6)),
+    );
     final privateBackground = Theme.of(context).brightness == Brightness.dark
         ? colors.surfaceContainerLow
         : const Color(0xFFECE9FA);
@@ -49,6 +54,7 @@ class HomeScreen extends StatelessWidget {
     ];
     return LayoutBuilder(
       builder: (context, box) => SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: box.maxHeight),
           child: DecoratedBox(
@@ -89,6 +95,20 @@ class HomeScreen extends StatelessWidget {
                             color: colors.onSurfaceVariant,
                           ),
                         ),
+                      IconButton(
+                        tooltip: 'Scan QR or barcode',
+                        onPressed: () => onTool('qr'),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 36,
+                          height: 32,
+                        ),
+                        icon: Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 24,
+                          color: colors.primary,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 18),
@@ -109,6 +129,7 @@ class HomeScreen extends StatelessWidget {
                       textInputAction: TextInputAction.go,
                       keyboardType: TextInputType.webSearch,
                       autocorrect: true,
+                      onTapOutside: (_) => FocusScope.of(context).unfocus(),
                       onSubmitted: onSearch,
                       decoration: InputDecoration(
                         hintText: 'Search or enter URL',
@@ -119,9 +140,10 @@ class HomeScreen extends StatelessWidget {
                         ),
                         suffixIcon: const Icon(Icons.search_rounded, size: 21),
                         filled: false,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide.none,
+                        border: searchBorder,
+                        enabledBorder: searchBorder,
+                        focusedBorder: searchBorder.copyWith(
+                          borderSide: BorderSide(color: colors.primary),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 14,
@@ -197,8 +219,9 @@ class _SearchProviderPicker extends StatelessWidget {
   final bool privateMode;
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => SelectedBuilder<Object>(
     listenable: store,
+    select: () => (store.readRows('engines'), store.setting('engine', 'google')),
     builder: (context, _) {
       final engines = store.readRows('engines');
       final selectedId = store.setting('engine', 'google');
@@ -230,9 +253,9 @@ class _SearchProviderPicker extends StatelessWidget {
               child: Row(
                 children: [
                   icon(engine),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(child: Text(engine['name'] as String)),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   if (engine['id'] == current['id'])
                     Icon(
                       Icons.check_rounded,

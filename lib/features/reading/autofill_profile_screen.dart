@@ -96,7 +96,7 @@ class _AutofillProfileScreenState extends State<AutofillProfileScreen> {
             ),
           )
         : ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
             children: [
               const Text(
                 'Use Browser tools → Fill contact details on a page. Review the fields before submitting the website form.',

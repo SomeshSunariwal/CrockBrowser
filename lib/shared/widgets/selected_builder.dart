@@ -1,5 +1,21 @@
 import 'package:flutter/widgets.dart';
 
+/// A projection suitable for merging with other listenables without forwarding
+/// unrelated source changes (for example, brightness while scrolling Settings).
+class SelectedValue<T> extends ValueNotifier<T> {
+  SelectedValue(this.source, this.select) : super(select()) {
+    source.addListener(_refresh);
+  }
+  final Listenable source;
+  final T Function() select;
+  void _refresh() => value = select();
+  @override
+  void dispose() {
+    source.removeListener(_refresh);
+    super.dispose();
+  }
+}
+
 /// Rebuilds only when the selected value changes, rather than on every event.
 class SelectedBuilder<T> extends StatefulWidget {
   const SelectedBuilder({

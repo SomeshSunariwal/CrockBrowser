@@ -29,30 +29,49 @@ class CardListItem extends StatelessWidget {
     required this.index,
     required this.count,
     required this.child,
+    this.paintBackground = false,
   });
   final int index, count;
   final Widget child;
+  final bool paintBackground;
   @override
   Widget build(BuildContext context) {
     final shape = Theme.of(context).cardTheme.shape;
     final radius = shape is RoundedRectangleBorder
         ? shape.borderRadius.resolve(Directionality.of(context))
         : BorderRadius.circular(24);
-    return Material(
-      type: MaterialType.transparency,
-      clipBehavior: Clip.antiAlias,
-      borderRadius: BorderRadius.only(
-        topLeft: index == 0 ? radius.topLeft : Radius.zero,
-        topRight: index == 0 ? radius.topRight : Radius.zero,
-        bottomLeft: index == count - 1 ? radius.bottomLeft : Radius.zero,
-        bottomRight: index == count - 1 ? radius.bottomRight : Radius.zero,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (index > 0) const Divider(indent: 56, endIndent: 12),
-          child,
-        ],
+    final corners = BorderRadius.only(
+      topLeft: index == 0 ? radius.topLeft : Radius.zero,
+      topRight: index == 0 ? radius.topRight : Radius.zero,
+      bottomLeft: index == count - 1 ? radius.bottomLeft : Radius.zero,
+      bottomRight: index == count - 1 ? radius.bottomRight : Radius.zero,
+    );
+    final theme = Theme.of(context);
+    final side = BorderSide(color: theme.colorScheme.outlineVariant);
+    return DecoratedBox(
+      decoration: paintBackground
+          ? BoxDecoration(
+              color: theme.cardTheme.color ?? theme.colorScheme.surface,
+              borderRadius: corners,
+              border: Border(
+                left: side,
+                right: side,
+                top: index == 0 ? side : BorderSide.none,
+                bottom: index == count - 1 ? side : BorderSide.none,
+              ),
+            )
+          : const BoxDecoration(),
+      child: Material(
+        type: MaterialType.transparency,
+        clipBehavior: Clip.antiAlias,
+        borderRadius: corners,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (index > 0) const Divider(indent: 52, endIndent: 12),
+            child,
+          ],
+        ),
       ),
     );
   }

@@ -84,7 +84,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               child: Row(
                 children: [
                   const CrockLogo(size: 48),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,7 +243,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
               fontSize: 12,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Icon(
             expanded
                 ? Icons.keyboard_arrow_up_rounded
@@ -304,7 +304,7 @@ class _DownloadsScreenState extends State<DownloadsScreen> {
                       size: 30,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(minHeight: 40),

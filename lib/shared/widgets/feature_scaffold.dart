@@ -21,7 +21,17 @@ class FeatureScaffold extends StatelessWidget {
   final List<Widget>? actions;
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title), actions: actions),
+    resizeToAvoidBottomInset: ModalRoute.isCurrentOf(context) ?? true,
+    appBar: AppBar(
+      leading: ModalRoute.of(context)?.canPop == true
+          ? const Padding(
+              padding: EdgeInsetsDirectional.only(start: 12),
+              child: BackButton(),
+            )
+          : null,
+      title: Text(title),
+      actions: actions,
+    ),
     body: SafeArea(top: false, child: child),
   );
 }
@@ -166,18 +176,20 @@ Future<T?> showCrockSheet<T>({
   bool isScrollControlled = false,
   bool useSafeArea = false,
   bool showDragHandle = true,
+  AnimationStyle? animationStyle,
 }) async {
   final navigator = Navigator.of(context);
   final theme = Theme.of(context);
   final route = ModalBottomSheetRoute<T>(
     sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
         ? AnimationStyle.noAnimation
-        : const AnimationStyle(
-            duration: AnimationTimings.sheetSlideIn,
-            reverseDuration: AnimationTimings.sheetSlideOut,
-            curve: AppMotion.curve,
-            reverseCurve: AppMotion.curve,
-          ),
+        : animationStyle ??
+              const AnimationStyle(
+                duration: AnimationTimings.sheetSlideIn,
+                reverseDuration: AnimationTimings.sheetSlideOut,
+                curve: AppMotion.curve,
+                reverseCurve: AppMotion.curve,
+              ),
     builder: builder,
     isScrollControlled: isScrollControlled,
     useSafeArea: useSafeArea,

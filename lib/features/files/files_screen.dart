@@ -24,6 +24,10 @@ class _FilesScreenState extends State<FilesScreen> {
   String filter = 'all', query = '';
   bool busy = true, device = false;
   String? error;
+  int _refreshVersion = 0;
+  List<Map<String, dynamic>>? _filterSource;
+  String? _filterKey;
+  List<Map<String, dynamic>> _filtered = [];
   @override
   void initState() {
     super.initState();
@@ -32,6 +36,7 @@ class _FilesScreenState extends State<FilesScreen> {
   }
 
   Future<void> _refresh() async {
+    final version = ++_refreshVersion;
     setState(() => busy = true);
     try {
       final rows = await NativeBridge.instance.list(
@@ -48,7 +53,7 @@ class _FilesScreenState extends State<FilesScreen> {
             ? null
             : {'path': path.last},
       );
-      if (mounted) {
+      if (mounted && version == _refreshVersion) {
         setState(() {
           files = rows;
           error = null;
@@ -56,7 +61,7 @@ class _FilesScreenState extends State<FilesScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && version == _refreshVersion) {
         setState(() {
           error = e.toString();
           busy = false;
@@ -65,19 +70,26 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final rows = files
+  List<Map<String, dynamic>> _visibleFiles() {
+    final normalizedQuery = query.toLowerCase();
+    final key = '$device/$filter/$normalizedQuery';
+    if (identical(files, _filterSource) && key == _filterKey) return _filtered;
+    _filterSource = files;
+    _filterKey = key;
+    return _filtered = files
         .where(
           (file) =>
-              file['name'].toString().toLowerCase().contains(
-                query.toLowerCase(),
-              ) &&
+              file['name'].toString().toLowerCase().contains(normalizedQuery) &&
               (filter == 'all' ||
                   device ||
                   (file['mime'] as String? ?? '').startsWith('$filter/')),
         )
         .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _visibleFiles();
     return FeatureScaffold(
       title: widget.media ? 'Media library' : 'Files',
       actions: [
@@ -356,8 +368,8 @@ class _FilesScreenState extends State<FilesScreen> {
         final input = TextEditingController(text: file['name'] as String);
         name = await showCrockDialog<String>(
           context: context,
-          builder: (context) => CrockEditorDialog(
-            title: 'Rename file',
+          builder: (context) => CrockDialog(
+            title: Text('Rename file'),
             content: CrockEditorField(
               label: 'Filename',
               controller: input,
