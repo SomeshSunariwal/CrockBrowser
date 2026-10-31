@@ -1,86 +1,117 @@
-import '../../core/theme/app_motion.dart';
+import '../../shared/widgets/crock_dropdown.dart';
 
 import 'package:flutter/material.dart';
 
 import '../../core/storage/browser_store.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/selected_builder.dart';
+import '../../shared/widgets/sliver_card.dart';
+import '../../shared/widgets/compact_list_row.dart';
 import '../../shared/widgets/editor_dialog.dart';
 
 class SearchEnginesScreen extends StatelessWidget {
   const SearchEnginesScreen({super.key, required this.store});
   final BrowserStore store;
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => SelectedBuilder<(BrowserRows, String)>(
     listenable: store,
-    builder: (context, _) => FeatureScaffold(
-      title: 'Search engines',
-      actions: [
-        IconButton(
-          tooltip: 'Add engine',
-          onPressed: () => _edit(context),
-          icon: const Icon(Icons.add_rounded),
-        ),
-      ],
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: Text(
-              'Choose a default engine. Custom search URLs must contain {query}. Use Meta search from the browser tools to search several engines at once.',
-              style: TextStyle(color: Color(0xFF75828F), height: 1.6),
-            ),
+    select: () => (
+      store.readRows('engines'),
+      store.setting('engine', 'google') as String,
+    ),
+    builder: (context, selection) {
+      final (engines, selected) = selection;
+      return FeatureScaffold(
+        title: 'Search engines',
+        actions: [
+          IconButton(
+            tooltip: 'Add engine',
+            onPressed: () => _edit(context),
+            icon: const Icon(Icons.add_rounded),
           ),
-          ...store
-              .rows('engines')
-              .map(
-                (engine) => Card(
-                  child: ListTile(
-                    leading: Icon(
-                      engine['id'] == store.setting('engine', 'google')
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_off,
-                      color: const Color(0xFF087CFA),
-                    ),
-                    title: Text(engine['name'] as String),
-                    subtitle: Text(
-                      engine['url'] as String,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onTap: () => store.setSetting('engine', engine['id']),
-                    trailing: PopupMenuButton<String>(
-                      popUpAnimationStyle: AppMotion.style,
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          _edit(context, engine);
-                        } else if (store.rows('engines').length > 1) {
-                          store.remove('engines', engine['id'] as String);
-                          if (store.setting('engine', 'google') ==
-                              engine['id']) {
-                            store.setSetting(
-                              'engine',
-                              store.rows('engines').first['id'],
-                            );
-                          }
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                        if (store.rows('engines').length > 1)
-                          const PopupMenuItem(
-                            value: 'remove',
-                            child: Text('Remove'),
-                          ),
-                      ],
+        ],
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              sliver: SliverMainAxisGroup(
+                slivers: [
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text(
+                        'Choose a default engine. Custom search URLs must contain {query}. Use Meta search from the browser tools to search several engines at once.',
+                        style: TextStyle(color: Color(0xFF75828F), height: 1.6),
+                      ),
                     ),
                   ),
-                ),
+                  SliverCard(
+                    sliver: SliverList.builder(
+                      itemCount: engines.length,
+                      itemBuilder: (context, index) => CardListItem(
+                        key: ValueKey(engines[index]['id']),
+                        index: index,
+                        count: engines.length,
+                        child: _engine(
+                          context,
+                          engines[index],
+                          selected,
+                          engines.length,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  Widget _engine(
+    BuildContext context,
+    Map<String, dynamic> engine,
+    String selected,
+    int count,
+  ) => CompactListRow(
+    leading: Icon(
+      engine['id'] == selected
+          ? Icons.radio_button_checked
+          : Icons.radio_button_off,
+      color: Theme.of(context).colorScheme.primary,
+    ),
+    title: Text(engine['name'] as String),
+    subtitle: Text(
+      engine['url'] as String,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    ),
+    onTap: () => store.setSetting('engine', engine['id']),
+    trailing: CrockPopupMenuButton<String>(
+      onSelected: (value) {
+        if (value == 'edit') {
+          _edit(context, engine);
+        } else if (store.readRows('engines').length > 1) {
+          store.remove('engines', engine['id'] as String);
+          if (store.setting('engine', 'google') == engine['id']) {
+            store.setSetting('engine', store.readRows('engines').first['id']);
+          }
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(height: 40, value: 'edit', child: Text('Edit')),
+        if (count > 1)
+          const PopupMenuItem(
+            height: 40,
+            value: 'remove',
+            child: Text('Remove'),
+          ),
+      ],
     ),
   );
+
   Future<void> _edit(BuildContext context, [Map<String, dynamic>? old]) async {
     final name = TextEditingController(text: old?['name'] as String? ?? ''),
         url = TextEditingController(
@@ -89,8 +120,8 @@ class SearchEnginesScreen extends StatelessWidget {
         );
     await showCrockDialog<void>(
       context: context,
-      builder: (context) => CrockEditorDialog(
-        title: old == null ? 'Add search engine' : 'Edit search engine',
+      builder: (context) => CrockDialog(
+        title: Text(old == null ? 'Add search engine' : 'Edit search engine'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

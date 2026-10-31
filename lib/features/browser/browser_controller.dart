@@ -12,7 +12,7 @@ import '../../core/services/site_icons.dart';
 class BrowserController extends ChangeNotifier {
   BrowserController(this.store) {
     if (!store.privateMode && store.setting('restoreTabs', true) == true) {
-      tabs.addAll(store.rows('tabs').map(BrowserTab.fromMap));
+      tabs.addAll(store.readRows('tabs').map(BrowserTab.fromMap));
     }
     if (tabs.isEmpty) tabs.add(BrowserTab());
     selected = (store.setting('selectedTab', 0) as int).clamp(
@@ -24,7 +24,7 @@ class BrowserController extends ChangeNotifier {
   final BrowserStore store;
   final List<BrowserTab> tabs = [];
   final List<BrowserTab> closedTabs = [];
-  final Map<int, String> _ids = {};
+  final Map<int, BrowserTab> _views = {};
   final Map<String, MethodChannel> _channels = {};
   final Map<String, Rect? Function()> _thumbnailBounds = {};
   final Map<String, Future<void>> _capturingThumbnails = {};
@@ -40,6 +40,8 @@ class BrowserController extends ChangeNotifier {
   bool get tabOverviewVisible => _tabOverviewVisible;
   bool _tabSnapshotVisible = false;
   bool _disposed = false;
+  Future<void>? _settingsUpdate;
+  bool _settingsQueued = false;
   bool get tabSnapshotVisible => _tabSnapshotVisible;
   bool _featureScreenVisible = false;
   BrowserTab get current => tabs[selected];
@@ -109,7 +111,7 @@ class BrowserController extends ChangeNotifier {
   bool get youtubeAutoSkipAds =>
       store.setting(
         'youtubeAutoSkipAds',
-        store.setting('youtubeAdBlock', false),
+        store.setting('youtubeAdBlock', true),
       ) ==
       true;
   bool get darkTheme {
@@ -124,7 +126,8 @@ class BrowserController extends ChangeNotifier {
   }
 
   void attach(int view, BrowserTab tab, {Rect? Function()? thumbnailBounds}) {
-    _ids[view] = tab.id;
+    if (_disposed || !tabs.contains(tab)) return;
+    _views[view] = tab;
     _channels[tab.id] = MethodChannel('croc/webview/$view');
     if (thumbnailBounds != null) _thumbnailBounds[tab.id] = thumbnailBounds;
     unawaited(_setTabActivity(tab));
@@ -172,7 +175,8 @@ class BrowserController extends ChangeNotifier {
                 'bottom': bounds.bottom.round(),
               },
       );
-      if (image != null &&
+      if (!_disposed &&
+          image != null &&
           tabs.contains(tab) &&
           current == tab &&
           isTabActive(tab) &&
@@ -228,9 +232,9 @@ class BrowserController extends ChangeNotifier {
   }
 
   void _event(Map<String, dynamic> event) {
-    final id = _ids[event['view']];
-    final matches = tabs.where((tab) => tab.id == id);
-    final tab = matches.isEmpty ? null : matches.first;
+    if (_disposed) return;
+    final tab = _views[event['view']];
+    final id = tab?.id;
     switch (event['type']) {
       case 'loginSuggestion':
         if (!privateMode && tab == current && !current.atHome) {
@@ -251,6 +255,8 @@ class BrowserController extends ChangeNotifier {
         }
       case 'browser':
         if (tab == null) return;
+        final before = tab.pageState;
+        final wasLoading = tab.loading;
         tab.url = event['url'] as String? ?? tab.url;
         tab.title = event['title'] as String? ?? tab.title;
         tab.progress = ((event['progress'] as num?) ?? 0) / 100;
@@ -259,7 +265,15 @@ class BrowserController extends ChangeNotifier {
         tab.failed = event['failed'] == true;
         tab.canBack = event['back'] == true;
         tab.canForward = event['forward'] == true;
-        if (!tab.loading &&
+        if (before == tab.pageState) return;
+        final metadataChanged = before.$1 != tab.url || before.$2 != tab.title;
+        final completed =
+            !tab.loading &&
+            (wasLoading ||
+                before.$3 < 1 ||
+                metadataChanged ||
+                before.$4 != tab.failed);
+        if (completed &&
             !tab.failed &&
             !tab.atHome &&
             tab.url.startsWith('http')) {
@@ -280,7 +294,7 @@ class BrowserController extends ChangeNotifier {
             _thumbnailCapturedForLoad.add(tab.id)) {
           captureThumbnails();
         }
-        if (!tab.loading) persist();
+        if (completed) persist();
       case 'scroll':
         if (tab == null) return;
         if (event['y'] is num) {
@@ -320,7 +334,7 @@ class BrowserController extends ChangeNotifier {
         (possible.host.contains('.') || possible.host == 'localhost')) {
       return possible.toString();
     }
-    final engines = store.rows('engines');
+    final engines = store.readRows('engines');
     final name = engine ?? store.setting('engine', 'google');
     final selected = engines.where((item) => item['id'] == name);
     final template = selected.isEmpty
@@ -364,6 +378,7 @@ class BrowserController extends ChangeNotifier {
   }
 
   void select(int index) {
+    if (index == selected) return;
     selected = index;
     unawaited(_syncTabActivity());
     notifyListeners();
@@ -371,19 +386,8 @@ class BrowserController extends ChangeNotifier {
   }
 
   void close(int index) {
-    final closingChannel = _channels[tabs[index].id];
-    if (closingChannel != null) {
-      unawaited(_setTabActivity(tabs[index], active: false));
-    }
     final removed = tabs.removeAt(index);
-    _thumbnailBounds.remove(removed.id);
-    _scrollY.remove(removed.id);
-    _scrollDirection.remove(removed.id);
-    _scrollable.remove(removed.id);
-    _thumbnailCapturedForLoad.remove(removed.id);
-    if (!privateMode) closedTabs.add(removed);
-    _channels.remove(removed.id);
-    _ids.removeWhere((key, value) => value == removed.id);
+    _releaseTab(removed);
     if (index < selected) selected--;
     if (tabs.isEmpty) tabs.add(BrowserTab());
     selected = selected.clamp(0, tabs.length - 1);
@@ -405,10 +409,32 @@ class BrowserController extends ChangeNotifier {
   }
 
   void closeAll() {
-    while (tabs.length > 1) {
-      close(tabs.length - 1);
+    // Release once, then publish one state change instead of rebuilding N times.
+    for (final tab in tabs.reversed) {
+      _releaseTab(tab);
     }
-    close(0);
+    tabs
+      ..clear()
+      ..add(BrowserTab());
+    selected = 0;
+    notifyListeners();
+    persist();
+  }
+
+  void _releaseTab(BrowserTab tab) {
+    unawaited(_setTabActivity(tab, active: false));
+    // Reopening uses URL/title only; retaining previews and media wastes memory.
+    tab.thumbnail = null;
+    if (!privateMode) closedTabs.add(tab);
+    foundMedia.remove(tab.id);
+    _pendingOffline.remove(tab.id);
+    _thumbnailBounds.remove(tab.id);
+    _scrollY.remove(tab.id);
+    _scrollDirection.remove(tab.id);
+    _scrollable.remove(tab.id);
+    _thumbnailCapturedForLoad.remove(tab.id);
+    _channels.remove(tab.id);
+    _views.removeWhere((key, value) => value == tab);
   }
 
   void home() {
@@ -443,19 +469,39 @@ class BrowserController extends ChangeNotifier {
     store.changed(keys: ['tabs'], settingsKeys: ['selectedTab']);
   }
 
-  Future<void> updateSettings() async {
-    for (final channel in _channels.values) {
-      await channel.invokeMethod('settings', {
+  Future<void> updateSettings() {
+    if (_disposed) return Future.value();
+    _settingsQueued = true;
+    return _settingsUpdate ??= _applySettings().whenComplete(
+      () => _settingsUpdate = null,
+    );
+  }
+
+  Future<void> _applySettings() async {
+    while (_settingsQueued && !_disposed) {
+      _settingsQueued = false;
+      final settings = {
         'font': store.setting('font', 100),
         'darkTheme': darkTheme,
-        'adBlock': store.setting('adBlock', false),
+        'adBlock': store.setting('adBlock', true),
         'youtubeAutoSkipAds': youtubeAutoSkipAds,
         'offerSavePasswords': store.setting('offerSavePasswords', true),
         'passwordPromptBlockedOrigins': store.setting(
           'passwordPromptBlockedOrigins',
           const <String>[],
         ),
-      });
+      };
+      for (final entry in _channels.entries.toList()) {
+        if (_disposed) return;
+        if (_channels[entry.key] != entry.value) continue;
+        try {
+          await entry.value.invokeMethod('settings', settings);
+        } on MissingPluginException {
+          // Tabs can close while an update is in flight.
+        } on PlatformException {
+          if (_channels[entry.key] == entry.value) rethrow;
+        }
+      }
     }
   }
 

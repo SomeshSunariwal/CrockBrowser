@@ -7,6 +7,7 @@ import 'core/theme/crock_theme.dart';
 import 'core/theme/app_motion.dart';
 import 'features/browser/browser_shell.dart';
 import 'shared/widgets/crock_logo.dart';
+import 'shared/widgets/selected_builder.dart';
 import 'shared/widgets/crock_notification.dart';
 
 Future<void> main() async {
@@ -55,13 +56,13 @@ class CrockApp extends StatelessWidget {
   final BrowserStore store;
   final bool downloads;
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => SelectedBuilder<String>(
     listenable: store,
-    builder: (context, _) {
-      final savedMode = store.setting(
-        'themeMode',
-        store.setting('darkTheme', false) == true ? 'dark' : 'system',
-      );
+    select: () => store.setting(
+      'themeMode',
+      store.setting('darkTheme', false) == true ? 'dark' : 'system',
+    ) as String,
+    builder: (context, savedMode) {
       final themeMode = switch (savedMode) {
         'dark' => ThemeMode.dark,
         'light' => ThemeMode.light,
@@ -71,7 +72,10 @@ class CrockApp extends StatelessWidget {
         themeAnimationCurve: AppMotion.curve,
         title: 'Crock Browser',
         debugShowCheckedModeBanner: false,
-        builder: (context, child) => CrockNotificationHost(child: child!),
+        builder: (context, child) => TooltipVisibility(
+          visible: false,
+          child: CrockNotificationHost(child: child!),
+        ),
         theme: CrockTheme.light,
         darkTheme: CrockTheme.dark,
         themeMode: themeMode,

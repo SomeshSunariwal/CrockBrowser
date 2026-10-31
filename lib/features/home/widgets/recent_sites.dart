@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../shared/widgets/site_icon.dart';
+import '../../../shared/widgets/compact_list_row.dart';
 
-class RecentSites extends StatelessWidget {
+class RecentSites extends StatefulWidget {
   const RecentSites({
     super.key,
     required this.history,
@@ -14,16 +15,32 @@ class RecentSites extends StatelessWidget {
   final VoidCallback onViewAll;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final ordered = [...history]
+  State<RecentSites> createState() => _RecentSitesState();
+}
+
+class _RecentSitesState extends State<RecentSites> {
+  late List<Map<String, dynamic>> _sites;
+  @override
+  void initState() {
+    super.initState();
+    _selectSites();
+  }
+
+  @override
+  void didUpdateWidget(covariant RecentSites oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.history, widget.history)) _selectSites();
+  }
+
+  void _selectSites() {
+    final ordered = [...widget.history]
       ..sort(
         (a, b) => ((b['created'] as num?) ?? 0).compareTo(
           (a['created'] as num?) ?? 0,
         ),
       );
     final seen = <String>{};
-    final sites = ordered
+    _sites = ordered
         .where((entry) {
           final uri = Uri.tryParse(entry['url']?.toString() ?? '');
           if (uri == null ||
@@ -37,28 +54,46 @@ class RecentSites extends StatelessWidget {
         })
         .take(6)
         .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Recently visited',
-                style: TextStyle(
-                  color: colors.onSurface,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
+        SizedBox(
+          height: 36,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Recently visited',
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
-            if (sites.isNotEmpty)
-              TextButton(onPressed: onViewAll, child: const Text('View all')),
-          ],
+              if (_sites.isNotEmpty)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(64, 32),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    alignment: Alignment.centerRight,
+                  ),
+                  onPressed: widget.onViewAll,
+                  child: const Text('View all'),
+                ),
+            ],
+          ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Card(
-          child: sites.isEmpty
+          clipBehavior: Clip.antiAlias,
+          child: _sites.isEmpty
               ? Padding(
                   padding: EdgeInsets.all(20),
                   child: Row(
@@ -68,7 +103,7 @@ class RecentSites extends StatelessWidget {
                         color: colors.onSurfaceVariant,
                         size: 24,
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Sites you visit will appear here.',
@@ -83,9 +118,9 @@ class RecentSites extends StatelessWidget {
                 )
               : Column(
                   children: [
-                    for (var i = 0; i < sites.length; i++) ...[
-                      if (i > 0) const Divider(indent: 56, endIndent: 12),
-                      _site(context, sites[i]),
+                    for (var i = 0; i < _sites.length; i++) ...[
+                      if (i > 0) const Divider(indent: 52, endIndent: 12),
+                      _site(context, _sites[i]),
                     ],
                   ],
                 ),
@@ -99,64 +134,28 @@ class RecentSites extends StatelessWidget {
     final url = site['url'].toString();
     final host = Uri.parse(url).host.replaceFirst(RegExp(r'^www\.'), '');
     final title = site['title']?.toString().trim() ?? '';
-    return InkWell(
-      onTap: () => onOpen(url),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 56),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: SiteIcon(
-                  url: url,
-                  size: 24,
-                  fallbackLabel: title.isEmpty ? host : title,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title.isEmpty ? host : title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      host,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.north_east_rounded,
-                color: colors.onSurfaceVariant,
-                size: 17,
-              ),
-            ],
-          ),
+    return CompactListRow(
+      onTap: () => widget.onOpen(url),
+      leading: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(10),
         ),
+        child: SiteIcon(
+          url: url,
+          size: 24,
+          fallbackLabel: title.isEmpty ? host : title,
+        ),
+      ),
+      title: Text(title.isEmpty ? host : title),
+      subtitle: Text(host),
+      trailing: Icon(
+        Icons.north_east_rounded,
+        color: colors.onSurfaceVariant,
+        size: 17,
       ),
     );
   }

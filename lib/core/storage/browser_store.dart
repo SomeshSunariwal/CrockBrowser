@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 
 import '../platform/native_bridge.dart';
 
+typedef BrowserRows = List<Map<String, dynamic>>;
+
 /// Persisted metadata stays on the device. Private sessions never save tabs/history.
 class BrowserStore extends ChangeNotifier {
   BrowserStore(this.privateMode);
@@ -14,11 +16,33 @@ class BrowserStore extends ChangeNotifier {
   final Set<String> _dirty = {};
   final Set<String> _settingsDirty = {};
   String? saveError;
-  Map<String, dynamic> get settings =>
-      (data['settings'] as Map?)?.cast<String, dynamic>() ?? {};
-  List<Map<String, dynamic>> rows(String key) => ((data[key] as List?) ?? [])
-      .map((row) => Map<String, dynamic>.from(row as Map))
-      .toList();
+  Map<String, dynamic> get settings {
+    final value = data['settings'];
+    return value is Map<String, dynamic>
+        ? value
+        : (value as Map?)?.cast<String, dynamic>() ?? const {};
+  }
+
+  final _rowCache = <String, (Object?, List<Map<String, dynamic>>)>{};
+
+  /// Stable, read-only snapshots for selectors and rendering. Mutations continue
+  /// to use rows(), so UI code cannot accidentally change persisted records.
+  /// In-place edits through data must call changed(keys: [key]).
+  List<Map<String, dynamic>> readRows(String key) {
+    final source = data[key];
+    final cached = _rowCache[key];
+    if (cached != null && identical(source, cached.$1)) return cached.$2;
+    final rows = List<Map<String, dynamic>>.unmodifiable(
+      ((source as List?) ?? const []).map(
+        (row) => Map<String, dynamic>.unmodifiable(row as Map),
+      ),
+    );
+    _rowCache[key] = (source, rows);
+    return rows;
+  }
+
+  List<Map<String, dynamic>> rows(String key) =>
+      readRows(key).map((row) => Map<String, dynamic>.from(row)).toList();
 
   Future<void> load() async {
     final text = await NativeBridge.instance.call<String>('store.read') ?? '{}';
@@ -66,6 +90,7 @@ class BrowserStore extends ChangeNotifier {
 
   dynamic setting(String key, [dynamic fallback]) => settings[key] ?? fallback;
   void setSetting(String key, dynamic value) {
+    if (settings.containsKey(key) && settings[key] == value) return;
     final next = Map<String, dynamic>.from(settings)..[key] = value;
     data['settings'] = next;
     _settingsDirty.add(key);
@@ -79,19 +104,37 @@ class BrowserStore extends ChangeNotifier {
     changed();
   }
 
-  void add(String key, Map<String, dynamic> row, {int? limit}) {
+  void add(
+    String key,
+    Map<String, dynamic> row, {
+    int? limit,
+    bool prepend = true,
+  }) {
     if (privateMode && (key == 'history' || key == 'tabs')) return;
-    final list = rows(key)..removeWhere((item) => item['id'] == row['id']);
-    list.insert(0, row);
-    setRows(key, limit == null ? list : list.take(limit).toList());
+    final items = List<Map<String, dynamic>>.of(readRows(key));
+    final index = items.indexWhere((item) => item['id'] == row['id']);
+    if (!prepend && index >= 0) {
+      items[index] = row;
+    } else {
+      items.removeWhere((item) => item['id'] == row['id']);
+      if (prepend) {
+        items.insert(0, row);
+      } else {
+        items.add(row);
+      }
+    }
+    setRows(key, limit == null ? items : items.take(limit).toList());
   }
 
   void remove(String key, String id) =>
-      setRows(key, rows(key)..removeWhere((item) => item['id'] == id));
+      setRows(key, readRows(key).where((item) => item['id'] != id).toList());
   void changed({
     Iterable<String> keys = const [],
     Iterable<String> settingsKeys = const [],
   }) {
+    for (final key in keys) {
+      _rowCache.remove(key);
+    }
     _dirty.addAll(keys);
     _settingsDirty.addAll(settingsKeys);
     notifyListeners();

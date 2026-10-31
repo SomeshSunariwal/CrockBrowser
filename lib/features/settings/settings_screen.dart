@@ -1,9 +1,12 @@
+import '../../shared/widgets/crock_switch.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/platform/native_bridge.dart';
 import '../../core/storage/browser_store.dart';
-import '../../shared/widgets/crock_logo.dart';
+import 'widgets/profile_card.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/selected_builder.dart';
 import '../browser/browser_controller.dart';
 import '../home/shortcuts_screen.dart';
 import '../library/library_screen.dart';
@@ -19,55 +22,24 @@ class SettingsScreen extends StatelessWidget {
   BrowserStore get store => browser.store;
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
+  Widget build(BuildContext context) => SelectedBuilder<Object>(
     listenable: store,
+    select: () => (
+      store.setting('offerSavePasswords', true),
+      store.setting('passwordPromptBlockedOrigins', const <String>[]),
+      store.setting('restoreTabs', true),
+      store.setting('tabGrid', true),
+      store.setting('adBlock', true),
+      browser.youtubeAutoSkipAds,
+      store.setting('profileName', 'Your Browser'),
+      store.setting('profilePhoto', ''),
+    ),
     builder: (context, _) => FeatureScaffold(
       title: 'Settings',
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
         children: [
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.surfaceContainerLow,
-                  Theme.of(context).colorScheme.surfaceContainerHighest,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-            ),
-            child: Row(
-              children: [
-                const CrockLogo(size: 58),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Make it yours.',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        'A better view of your web.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          ProfileCard(store: store),
           SettingsSection(
             title: 'Home & search',
             children: [
@@ -106,7 +78,8 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.password_rounded,
                 title: 'Offer to save passwords',
                 subtitle: 'Ask after successful sign-ins in regular tabs',
-                trailing: Switch(
+                trailing: CrockSwitch(
+                  semanticLabel: 'Offer to save passwords',
                   value: store.setting('offerSavePasswords', true) == true,
                   onChanged: (value) async {
                     store.setSetting('offerSavePasswords', value);
@@ -141,7 +114,8 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.restore_page_outlined,
                 title: 'Pick up where you left off',
                 subtitle: 'Restore regular tabs on launch',
-                trailing: Switch(
+                trailing: CrockSwitch(
+                  semanticLabel: 'Restore tabs on launch',
                   value: store.setting('restoreTabs', true) == true,
                   onChanged: (value) => store.setSetting('restoreTabs', value),
                 ),
@@ -150,7 +124,8 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.grid_view_rounded,
                 title: 'Tab grid',
                 subtitle: 'See your tabs at a glance',
-                trailing: Switch(
+                trailing: CrockSwitch(
+                  semanticLabel: 'Tab grid',
                   value: store.setting('tabGrid', true) == true,
                   onChanged: (value) => store.setSetting('tabGrid', value),
                 ),
@@ -191,8 +166,9 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.shield_outlined,
                 title: 'Ad blocking',
                 subtitle: 'Filter known advertising hosts',
-                trailing: Switch(
-                  value: store.setting('adBlock', false) == true,
+                trailing: CrockSwitch(
+                  semanticLabel: 'Ad blocking',
+                  value: store.setting('adBlock', true) == true,
                   onChanged: (value) {
                     store.setSetting('adBlock', value);
                     browser.updateSettings();
@@ -203,7 +179,8 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.smart_display_outlined,
                 title: 'Auto-skip YouTube ads',
                 subtitle: 'Click Skip when it becomes available',
-                trailing: Switch(
+                trailing: CrockSwitch(
+                  semanticLabel: 'Auto-skip YouTube ads',
                   value: browser.youtubeAutoSkipAds,
                   onChanged: (value) {
                     store.setSetting('youtubeAutoSkipAds', value);
@@ -222,7 +199,7 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 30),
           Center(
             child: Text(
-              'Crock Browser 0.1.1',
+              'Crock Browser 0.1.2',
               style: TextStyle(
                 fontSize: 12,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,

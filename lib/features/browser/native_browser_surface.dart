@@ -47,7 +47,7 @@ class NativeBrowserSurface extends StatelessWidget {
               'desktop': tab.desktop,
               'font': browser.store.setting('font', 100),
               'darkTheme': browser.darkTheme,
-              'adBlock': browser.store.setting('adBlock', false),
+              'adBlock': browser.store.setting('adBlock', true),
               'youtubeAutoSkipAds': browser.youtubeAutoSkipAds,
               'offerSavePasswords': browser.store.setting(
                 'offerSavePasswords',

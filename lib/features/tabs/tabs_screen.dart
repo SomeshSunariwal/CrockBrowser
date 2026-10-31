@@ -1,3 +1,5 @@
+import '../../shared/widgets/crock_dropdown.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/models/browser_tab.dart';
@@ -38,7 +40,7 @@ class _TabsScreenState extends State<TabsScreen> {
     }
     _openingTabId = widget.browser.current.id;
     final thumbnail = widget.browser.current.thumbnail;
-    if (!widget.browser.current.atHome && thumbnail != null) {
+    if (thumbnail != null) {
       await precacheImage(MemoryImage(thumbnail), context);
       if (!mounted) return;
     }
@@ -61,8 +63,7 @@ class _TabsScreenState extends State<TabsScreen> {
               setState(() => widget.browser.store.setSetting('tabGrid', !grid)),
           icon: Icon(grid ? Icons.view_list_rounded : Icons.grid_view_rounded),
         ),
-        PopupMenuButton<String>(
-          popUpAnimationStyle: AppMotion.style,
+        CrockPopupMenuButton<String>(
           onSelected: (value) async {
             if (value == 'reopen') {
               widget.browser.reopenClosed();
@@ -79,10 +80,15 @@ class _TabsScreenState extends State<TabsScreen> {
           itemBuilder: (context) => [
             if (!widget.browser.privateMode)
               const PopupMenuItem(
+                height: 40,
                 value: 'reopen',
                 child: Text('Reopen closed tab'),
               ),
-            const PopupMenuItem(value: 'close', child: Text('Close all tabs')),
+            const PopupMenuItem(
+              height: 40,
+              value: 'close',
+              child: Text('Close all tabs'),
+            ),
           ],
         ),
       ],
@@ -267,7 +273,7 @@ class _NewTabCard extends StatelessWidget {
                   : Row(
                       children: [
                         icon,
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 8),
                         Expanded(child: label),
                       ],
                     ),
@@ -327,7 +333,7 @@ class _EngravedTabBorder extends CustomPainter {
     final stroke = Paint()
       ..color = border
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.25;
+      ..strokeWidth = 1;
     for (final contour in outline.computeMetrics()) {
       for (double distance = 0; distance < contour.length; distance += 11) {
         canvas.drawPath(

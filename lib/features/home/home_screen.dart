@@ -1,9 +1,14 @@
+import '../../shared/widgets/crock_dropdown.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../core/storage/browser_store.dart';
 import '../../core/theme/crock_theme.dart';
 import '../../shared/widgets/crock_logo.dart';
+import '../../shared/widgets/site_icon.dart';
+import '../../shared/widgets/selected_builder.dart';
 import 'widgets/home_bookmarks.dart';
+import 'widgets/home_grid.dart';
 import 'widgets/recent_sites.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -23,6 +28,10 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final searchBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide(color: colors.outline.withValues(alpha: .6)),
+    );
     final privateBackground = Theme.of(context).brightness == Brightness.dark
         ? colors.surfaceContainerLow
         : const Color(0xFFECE9FA);
@@ -45,6 +54,7 @@ class HomeScreen extends StatelessWidget {
     ];
     return LayoutBuilder(
       builder: (context, box) => SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: box.maxHeight),
           child: DecoratedBox(
@@ -58,61 +68,59 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 112),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 112),
               child: Column(
                 children: [
                   Row(
                     children: [
+                      const CrockLogo(size: 28),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: privateMode
-                              ? const Chip(
-                                  avatar: Icon(
-                                    Icons.visibility_off_outlined,
-                                    size: 17,
-                                  ),
-                                  label: Text('Private session'),
-                                )
-                              : Text(
-                                  'YOUR WINDOW TO THE WEB',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    letterSpacing: 2,
-                                    color: colors.onSurfaceVariant,
-                                  ),
-                                ),
+                        child: Text(
+                          privateMode ? 'Browse privately' : 'Crock Browser',
+                          style: TextStyle(
+                            color: colors.onSurface,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.3,
+                          ),
                         ),
                       ),
+                      if (privateMode)
+                        Tooltip(
+                          message: 'Private session',
+                          child: Icon(
+                            Icons.visibility_off_outlined,
+                            size: 20,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
                       IconButton(
-                        tooltip: 'Scan QR code',
+                        tooltip: 'Scan QR or barcode',
                         onPressed: () => onTool('qr'),
-                        icon: const Icon(Icons.qr_code_scanner_rounded),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 36,
+                          height: 32,
+                        ),
+                        icon: Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 24,
+                          color: colors.primary,
+                        ),
                       ),
                     ],
                   ),
-                  SizedBox(height: box.maxHeight > 650 ? 64 : 28),
-                  const CrockLogo(size: 76),
                   const SizedBox(height: 18),
-                  Text(
-                    privateMode ? 'Browse privately' : 'Crock Browser',
-                    style: TextStyle(
-                      color: colors.onSurface,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: -1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 30),
                   Container(
                     decoration: BoxDecoration(
                       color: colors.surface,
-                      borderRadius: BorderRadius.circular(36),
+                      borderRadius: BorderRadius.circular(18),
                       boxShadow: const [
                         BoxShadow(
-                          color: Color(0x0E1B3C66),
-                          blurRadius: 28,
-                          offset: Offset(0, 8),
+                          color: Color(0x201B3C66),
+                          blurRadius: 20,
+                          offset: Offset(0, 6),
                         ),
                       ],
                     ),
@@ -121,45 +129,48 @@ class HomeScreen extends StatelessWidget {
                       textInputAction: TextInputAction.go,
                       keyboardType: TextInputType.webSearch,
                       autocorrect: true,
+                      onTapOutside: (_) => FocusScope.of(context).unfocus(),
                       onSubmitted: onSearch,
                       decoration: InputDecoration(
                         hintText: 'Search or enter URL',
-                        hintStyle: const TextStyle(fontSize: 16),
-                        prefixIcon: const Padding(
-                          padding: EdgeInsets.only(left: 12),
-                          child: Icon(Icons.search_rounded, size: 25),
+                        hintStyle: const TextStyle(fontSize: 14),
+                        prefixIcon: _SearchProviderPicker(
+                          store: store,
+                          privateMode: privateMode,
                         ),
+                        suffixIcon: const Icon(Icons.search_rounded, size: 21),
                         filled: false,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(36),
-                          borderSide: BorderSide.none,
+                        border: searchBorder,
+                        enabledBorder: searchBorder,
+                        focusedBorder: searchBorder.copyWith(
+                          borderSide: BorderSide(color: colors.primary),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          vertical: 21,
+                          vertical: 14,
                           horizontal: 12,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: tools
-                        .map(
-                          (tool) => Expanded(
-                            child: _HomeTool(
-                              title: tool.$1,
-                              color: tool.$4,
-                              icon: tool.$2,
-                              onTap: () => onTool(tool.$3),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                  const SizedBox(height: 20),
+                  GridView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    gridDelegate: HomeGrid.delegate(context),
+                    children: [
+                      for (final tool in tools)
+                        HomeGridTile(
+                          title: tool.$1,
+                          color: tool.$4,
+                          icon: Icon(tool.$2, color: Colors.white, size: 25),
+                          onTap: () => onTool(tool.$3),
+                        ),
+                    ],
                   ),
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 8),
                   HomeBookmarks(
-                    sites: store.rows('shortcuts'),
+                    sites: store.readRows('shortcuts'),
                     onOpen: onShortcut,
                     onEdit: onEditShortcut,
                     onManage: () => onTool('shortcuts'),
@@ -168,12 +179,12 @@ class HomeScreen extends StatelessWidget {
                   if (!privateMode) ...[
                     const SizedBox(height: 12),
                     RecentSites(
-                      history: store.rows('history'),
+                      history: store.readRows('history'),
                       onOpen: onSearch,
                       onViewAll: () => onTool('history'),
                     ),
                   ],
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
                   Text(
                     privateMode
                         ? 'Private history and tabs stay out of your saved session.'
@@ -200,49 +211,72 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeTool extends StatelessWidget {
-  const _HomeTool({
-    required this.title,
-    required this.color,
-    required this.onTap,
-    required this.icon,
-  });
-  final String title;
-  final Color color;
-  final VoidCallback onTap;
-  final IconData icon;
+/// Uses the same saved provider as Settings and BrowserController.resolve.
+class _SearchProviderPicker extends StatelessWidget {
+  const _SearchProviderPicker({required this.store, required this.privateMode});
+
+  final BrowserStore store;
+  final bool privateMode;
+
   @override
-  Widget build(BuildContext context) => InkWell(
-    borderRadius: BorderRadius.circular(18),
-    onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
-      child: Column(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(18),
+  Widget build(BuildContext context) => SelectedBuilder<Object>(
+    listenable: store,
+    select: () => (store.readRows('engines'), store.setting('engine', 'google')),
+    builder: (context, _) {
+      final engines = store.readRows('engines');
+      final selectedId = store.setting('engine', 'google');
+      final selected = engines.where((engine) => engine['id'] == selectedId);
+      final current = selected.isNotEmpty
+          ? selected.first
+          : <String, dynamic>{
+              'id': 'google',
+              'name': 'Google',
+              'url': 'https://www.google.com/search?q={query}',
+            };
+      Widget icon(Map<String, dynamic> engine) => SiteIcon(
+        key: ValueKey(engine['id']),
+        url: engine['url'] as String,
+        fallbackLabel: engine['name'] as String,
+        size: 22,
+        allowNetwork: !privateMode,
+      );
+      return CrockPopupMenuButton<String>(
+        tooltip: 'Search provider: ${current['name']}',
+        position: PopupMenuPosition.under,
+        initialValue: current['id'] as String,
+        onSelected: (id) => store.setSetting('engine', id),
+        itemBuilder: (context) => [
+          for (final engine in engines)
+            PopupMenuItem<String>(
+              height: 40,
+              value: engine['id'] as String,
+              child: Row(
+                children: [
+                  icon(engine),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(engine['name'] as String)),
+                  const SizedBox(width: 8),
+                  if (engine['id'] == current['id'])
+                    Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                ],
+              ),
             ),
-            alignment: Alignment.center,
-            child: Icon(icon, color: Colors.white, size: 25),
-          ),
-          const SizedBox(height: 9),
-          Text(
-            title,
-            maxLines: 2,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontSize: 11,
-              height: 1.25,
-            ),
-          ),
         ],
-      ),
-    ),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 14, right: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              icon(current),
+              const Icon(Icons.arrow_drop_down_rounded, size: 18),
+            ],
+          ),
+        ),
+      );
+    },
   );
 }

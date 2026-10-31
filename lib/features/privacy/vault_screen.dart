@@ -90,7 +90,7 @@ class _VaultScreenState extends State<VaultScreen> {
                 : 'Use Copy to Private Space from a file’s menu to add an encrypted copy.',
           )
         : ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             itemCount: rows.length,
             itemBuilder: (context, index) {
               final row = rows[index];
@@ -119,7 +119,7 @@ class _VaultScreenState extends State<VaultScreen> {
                       } else {
                         await showCrockDialog<void>(
                           context: context,
-                          builder: (context) => AlertDialog(
+                          builder: (context) => CrockDialog(
                             title: Text(
                               row['origin'] as String? ?? 'Saved login',
                             ),

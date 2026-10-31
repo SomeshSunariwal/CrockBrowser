@@ -49,8 +49,6 @@ mixin _BrowserActions on State<BrowserShell> {
         _pageMedia();
       case 'find':
         _find();
-      case 'meta':
-        _metaSearch();
       case 'saveLogin':
         _saveLogin();
       case 'fillLogin':
@@ -78,112 +76,194 @@ mixin _BrowserActions on State<BrowserShell> {
     final items = [
       ('Bookmarks', Icons.bookmark_outline, 'bookmarks'),
       ('History', Icons.history_rounded, 'history'),
-      ('Downloads', Icons.download_rounded, 'downloads'),
+      ('Downloads', Icons.file_download_outlined, 'downloads'),
       ('Files', Icons.folder_outlined, 'files'),
       ('Settings', Icons.tune_rounded, 'settings'),
       ('Add bookmark', Icons.bookmark_add_outlined, 'addBookmark'),
       ('Private tabs', Icons.visibility_off_outlined, 'private'),
       ('New tab', Icons.add_rounded, 'newTab'),
-      ('Share page', Icons.ios_share_rounded, 'share'),
+      ('Share page', Icons.share_outlined, 'share'),
       ('Page tools', Icons.widgets_outlined, 'tools'),
     ];
-    showCrockSheet<void>(
+    _actionMenu(
+      items,
+      onSelected: (action) {
+        switch (action) {
+          case 'addBookmark':
+            _bookmark();
+          case 'newTab':
+            browser.newTab();
+          case 'share':
+            _share();
+          case 'tools':
+            _tools();
+          default:
+            _tool(action);
+        }
+      },
+    );
+  }
+
+  Future<void> _actionMenu(
+    List<(String, IconData, String)> items, {
+    required ValueChanged<String> onSelected,
+    int columns = 5,
+    Set<String> disabled = const {},
+    Set<String> selected = const {},
+    Set<String> toggles = const {},
+    VoidCallback? onBack,
+  }) async {
+    final action = await showCrockSheet<String>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: false,
+      animationStyle: const AnimationStyle(
+        duration: AnimationTimings.actionSheetSlideIn,
+        reverseDuration: AnimationTimings.actionSheetSlideOut,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      ),
       builder: (context) {
         final colors = Theme.of(context).colorScheme;
-        final dark = Theme.of(context).brightness == Brightness.dark;
-        final landscape =
-            MediaQuery.orientationOf(context) == Orientation.landscape;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(18, 0, 18, landscape ? 6 : 28),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * .88,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(
-                      top: landscape ? 3 : 5,
-                      bottom: landscape ? 8 : 14,
-                    ),
-                    child: Container(
-                      width: 32,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.outline,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  GridView.count(
-                    crossAxisCount: 5,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisExtent: landscape ? 80 : null,
-                    childAspectRatio: landscape ? 1.05 : .8,
-                    children: items
-                        .map(
-                          (item) => InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () {
-                              Navigator.pop(context);
-                              switch (item.$3) {
-                                case 'addBookmark':
-                                  _bookmark();
-                                case 'newTab':
-                                  browser.newTab();
-                                case 'share':
-                                  _share();
-                                case 'tools':
-                                  _tools();
-                                default:
-                                  _tool(item.$3);
-                              }
-                            },
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircleAvatar(
-                                  radius: landscape ? 18 : 20,
-                                  backgroundColor: dark
-                                      ? colors.surfaceContainerHigh
-                                      : colors.primaryContainer,
-                                  child: Icon(item.$2, color: colors.primary),
-                                ),
-                                SizedBox(height: landscape ? 5 : 10),
-                                Text(
-                                  item.$1,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                              ],
+        final labelHeight = MediaQuery.textScalerOf(context).scale(11) * 2.4;
+        return PopScope<String>(
+          canPop: onBack == null,
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop && onBack != null) {
+              Navigator.pop(context, '_backToBrowserMenu');
+            }
+          },
+          child: SafeArea(
+            top: false,
+            minimum: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * .88,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 12),
+                        child: Container(
+                          width: 32,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: colors.onSurfaceVariant.withValues(
+                              alpha: .4,
                             ),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                        )
-                        .toList(),
+                        ),
+                      ),
+                      GridView.count(
+                        crossAxisCount: columns,
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisExtent: 52 + labelHeight,
+                        mainAxisSpacing: 6,
+                        crossAxisSpacing: 4,
+                        children: items
+                            .map(
+                              (item) => Semantics(
+                                button: true,
+                                enabled: !disabled.contains(item.$3),
+                                toggled: toggles.contains(item.$3)
+                                    ? selected.contains(item.$3)
+                                    : null,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(16),
+                                  onTap: disabled.contains(item.$3)
+                                      ? null
+                                      : () => Navigator.pop(context, item.$3),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 3,
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            color: colors.primary.withValues(
+                                              alpha: selected.contains(item.$3)
+                                                  ? .22
+                                                  : .1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: colors.primary.withValues(
+                                                alpha:
+                                                    selected.contains(item.$3)
+                                                    ? .7
+                                                    : .2,
+                                              ),
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            item.$2,
+                                            color: disabled.contains(item.$3)
+                                                ? colors.onSurfaceVariant
+                                                      .withValues(alpha: .45)
+                                                : colors.primary,
+                                            size: 26,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          item.$1,
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: disabled.contains(item.$3)
+                                                ? colors.onSurfaceVariant
+                                                      .withValues(alpha: .45)
+                                                : colors.onSurface,
+                                            fontSize: 11,
+                                            height: 1.2,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
         );
       },
     );
+    if (!mounted) return;
+    if (action == '_backToBrowserMenu') {
+      onBack?.call();
+    } else if (action != null) {
+      onSelected(action);
+    }
   }
 
   void _tools() {
     final tools = [
       ('Reader & translation', Icons.chrome_reader_mode_outlined, 'reader'),
-      ('Save page offline', Icons.offline_pin_outlined, 'saveOffline'),
       ('Saved offline pages', Icons.download_done_rounded, 'offline'),
-      ('Find in page', Icons.search_rounded, 'find'),
-      ('Meta search', Icons.travel_explore_rounded, 'meta'),
       ('Page media / downloader', Icons.video_collection_outlined, 'pageMedia'),
       ('Save login', Icons.password_rounded, 'saveLogin'),
       ('Autofill saved login', Icons.key_rounded, 'fillLogin'),
@@ -191,58 +271,23 @@ mixin _BrowserActions on State<BrowserShell> {
       ('Autofill contact profile', Icons.person_outline, 'profile'),
       ('Fill contact details', Icons.contact_page_outlined, 'fillProfile'),
       ('Private Space', Icons.shield_outlined, 'vault'),
-      ('History', Icons.history_rounded, 'history'),
       ('Clipboard manager', Icons.content_paste_rounded, 'clipboard'),
-      ('QR / barcode scanner', Icons.qr_code_scanner, 'qr'),
-      ('Manage shortcuts', Icons.grid_view_rounded, 'shortcuts'),
       ('Touch to hide Ads', Icons.block_rounded, 'hideAd'),
     ];
-    showCrockSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: .72,
-        minChildSize: .4,
-        maxChildSize: .95,
-        builder: (context, scroll) => ListView(
-          controller: scroll,
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-          children: [
-            const Text(
-              'Browser tools',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Desktop site'),
-              value: browser.current.desktop,
-              onChanged: browser.current.atHome
-                  ? null
-                  : (value) {
-                      Navigator.pop(context);
-                      browser.toggleDesktop();
-                    },
-            ),
-            ...tools.map(
-              (item) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  item.$2,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                title: Text(item.$1),
-                onTap: () {
-                  Navigator.pop(context);
-                  _tool(item.$3);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+    _actionMenu(
+      [('Desktop site', Icons.desktop_windows_outlined, 'desktop'), ...tools],
+      columns: 4,
+      disabled: {if (browser.current.atHome) 'desktop'},
+      selected: {if (browser.current.desktop) 'desktop'},
+      toggles: const {'desktop'},
+      onBack: _menu,
+      onSelected: (action) {
+        if (action == 'desktop') {
+          browser.toggleDesktop();
+        } else {
+          _tool(action);
+        }
+      },
     );
   }
 
@@ -256,6 +301,11 @@ mixin _BrowserActions on State<BrowserShell> {
 
   void _bookmark() {
     if (!_needPage()) return;
+    if (store
+        .readRows('bookmarks')
+        .any((bookmark) => bookmark['url'] == browser.current.url)) {
+      return;
+    }
     store.add('bookmarks', {
       'id': DateTime.now().microsecondsSinceEpoch.toString(),
       'title': browser.current.title,
@@ -356,66 +406,6 @@ mixin _BrowserActions on State<BrowserShell> {
     await browser.page('find', {'text': ''});
   }
 
-  Future<void> _metaSearch() async {
-    final input = TextEditingController();
-    final selected = <String>{store.setting('engine', 'google') as String};
-    await showCrockDialog<void>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: const Text('Meta search'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: input,
-                  decoration: const InputDecoration(labelText: 'Search query'),
-                ),
-                const SizedBox(height: 10),
-                ...store
-                    .rows('engines')
-                    .map(
-                      (engine) => CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(engine['name'] as String),
-                        value: selected.contains(engine['id']),
-                        onChanged: (checked) => setLocal(() {
-                          if (checked == true) {
-                            selected.add(engine['id'] as String);
-                          } else {
-                            selected.remove(engine['id']);
-                          }
-                        }),
-                      ),
-                    ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (input.text.trim().isEmpty || selected.isEmpty) return;
-                for (final engine in selected) {
-                  browser.newTab(
-                    browser.resolve(input.text.trim(), engine: engine),
-                  );
-                }
-                Navigator.pop(context);
-              },
-              child: const Text('Search in tabs'),
-            ),
-          ],
-        ),
-      ),
-    );
-    input.dispose();
-  }
-
   Future<void> _contextLink(Map<String, dynamic> event) async {
     final url = event['url'] as String? ?? '';
     await showCrockSheet<void>(
@@ -494,10 +484,11 @@ mixin _BrowserActions on State<BrowserShell> {
       final media = <Map<String, dynamic>>[
         ...browser.foundMedia[browser.current.id] ?? [],
       ];
+      final urls = media.map((item) => item['url']).toSet();
       if (dom is List) {
         for (final row in dom) {
           final entry = Map<String, dynamic>.from(row as Map);
-          if (!media.any((item) => item['url'] == entry['url'])) {
+          if (urls.add(entry['url'])) {
             media.add(entry);
           }
         }
@@ -514,51 +505,55 @@ mixin _BrowserActions on State<BrowserShell> {
                   title: 'No direct media found yet',
                   detail: 'Start playing media on the page, then open this panel again. Blob and protected streams cannot be downloaded as direct files.',
                 )
-              : ListView(
+              : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                  children: [
-                    const Text(
-                      'Page media',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...media.map(
-                      (item) => Card(
-                        child: ListTile(
-                          title: Text(
-                            item['title'] as String? ?? 'Media file',
-                            maxLines: 2,
-                          ),
-                          subtitle: Text(
-                            item['url'] as String,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Play',
-                                onPressed: () => _playMedia(item),
-                                icon: const Icon(Icons.play_circle_outline),
-                              ),
-                              IconButton(
-                                tooltip: 'Download',
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  _downloadMedia(item);
-                                },
-                                icon: const Icon(Icons.download_outlined),
-                              ),
-                            ],
+                  itemCount: media.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Page media',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
+                      );
+                    }
+                    final item = media[index - 1];
+                    return Card(
+                      child: ListTile(
+                        title: Text(
+                          item['title'] as String? ?? 'Media file',
+                          maxLines: 2,
+                        ),
+                        subtitle: Text(
+                          item['url'] as String,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Play',
+                              onPressed: () => _playMedia(item),
+                              icon: const Icon(Icons.play_circle_outline),
+                            ),
+                            IconButton(
+                              tooltip: 'Download',
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _downloadMedia(item);
+                              },
+                              icon: const Icon(Icons.download_outlined),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
         ),
       );

@@ -11,6 +11,7 @@ import '../../core/theme/crock_theme.dart';
 import '../../core/theme/animation_timings.dart';
 import '../../core/theme/app_motion.dart';
 import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/selected_builder.dart';
 import '../downloads/download_controller.dart';
 import '../downloads/download_feedback.dart';
 import '../downloads/youtube_quality_menu.dart';
@@ -58,6 +59,15 @@ class _BrowserShellState extends State<BrowserShell>
   @override
   final downloads = DownloadController();
   late final loginPrompts = LoginSavePrompt(store);
+  late final _storeUi = SelectedValue<Object>(
+    store,
+    () => (
+      store.readRows('shortcuts'),
+      store.readRows('history'),
+      store.setting('addressBarMode', 'static'),
+    ),
+  );
+  late final _changes = Listenable.merge([browser, _storeUi]);
   late final StreamSubscription<Map<String, dynamic>> events;
   late final StreamSubscription<Map<String, dynamic>> _completedDownloads;
   final address = TextEditingController(), addressFocus = FocusNode();
@@ -417,6 +427,25 @@ class _BrowserShellState extends State<BrowserShell>
     switch (action) {
       case 'back':
         browser.back();
+      case 'toggleBookmark':
+        final bookmarks = store.readRows('bookmarks');
+        final saved = bookmarks.any(
+          (bookmark) => bookmark['url'] == browser.current.url,
+        );
+        if (saved) {
+          store.setRows(
+            'bookmarks',
+            bookmarks
+                .where((bookmark) => bookmark['url'] != browser.current.url)
+                .toList(),
+          );
+        } else {
+          _bookmark();
+        }
+      case 'addBookmark':
+        _bookmark();
+      case 'bookmarks':
+        _tool('bookmarks');
       case 'refresh':
         browser.page('reload');
       case 'find':
@@ -427,6 +456,8 @@ class _BrowserShellState extends State<BrowserShell>
         _tool('private');
       case 'downloads':
         _tool('downloads');
+      case 'saveOffline':
+        _tool('saveOffline');
       case 'history':
         _tool('history');
       case 'browserMenu':
@@ -440,7 +471,7 @@ class _BrowserShellState extends State<BrowserShell>
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([browser, store]),
+    listenable: _changes,
     builder: (context, _) {
       final tab = browser.current;
       final page = tab.url.split('#').first;
@@ -472,6 +503,8 @@ class _BrowserShellState extends State<BrowserShell>
           }
         },
         child: Scaffold(
+          // A modal owns keyboard avoidance while it covers this route.
+          resizeToAvoidBottomInset: ModalRoute.isCurrentOf(context) ?? true,
           body: SafeArea(
             child: LayoutBuilder(
               builder: (context, viewport) => Column(
@@ -485,6 +518,7 @@ class _BrowserShellState extends State<BrowserShell>
                         controller: address,
                         focusNode: addressFocus,
                         url: tab.url,
+                        store: store,
                         onHome: browser.home,
                         onSubmit: _open,
                         onMenuSelected: _overflowAction,
@@ -492,8 +526,6 @@ class _BrowserShellState extends State<BrowserShell>
                         tabCount: browser.tabs.length,
                       ),
                     ),
-                  if (!tab.atHome && tab.loading)
-                    LinearProgressIndicator(value: tab.progress, minHeight: 2),
                   if (!tab.atHome && tab.failed)
                     Container(
                       color: Theme.of(context).colorScheme.errorContainer,
@@ -610,34 +642,42 @@ class _BrowserShellState extends State<BrowserShell>
                               child: Material(
                                 color: Theme.of(context)
                                     .scaffoldBackgroundColor,
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    HomeScreen(
-                                      store: store,
-                                      privateMode: browser.privateMode,
-                                      onSearch: _open,
-                                      onTool: _tool,
-                                      onShortcut: (site) =>
-                                          _open(site['url'] as String),
-                                      onEditShortcut: (site) => editShortcut(
-                                        context,
-                                        store,
-                                        site.isEmpty ? null : site,
-                                      ),
-                                    ),
-                                  ],
+                                child: HomeScreen(
+                                  store: store,
+                                  privateMode: browser.privateMode,
+                                  onSearch: _open,
+                                  onTool: _tool,
+                                  onShortcut: (site) =>
+                                      _open(site['url'] as String),
+                                  onEditShortcut: (site) => editShortcut(
+                                    context,
+                                    store,
+                                    site.isEmpty ? null : site,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         if (tab.atHome &&
-                            MediaQuery.viewInsetsOf(context).bottom == 0)
+                            (!(ModalRoute.isCurrentOf(context) ?? true) ||
+                                MediaQuery.viewInsetsOf(context).bottom == 0))
                           Positioned(
                             left: 0,
                             right: 0,
                             bottom: 0,
                             child: _navigation(),
+                          ),
+                        if (!tab.atHome && tab.loading)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: IgnorePointer(
+                              child: LinearProgressIndicator(
+                                value: tab.progress,
+                                minHeight: 2,
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -717,7 +757,7 @@ class _BrowserShellState extends State<BrowserShell>
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       border: Border.all(
-                        width: 1.8,
+                        width: 1,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                       borderRadius: BorderRadius.circular(6),
@@ -749,6 +789,7 @@ class _BrowserShellState extends State<BrowserShell>
     WidgetsBinding.instance.removeObserver(this);
     events.cancel();
     _completedDownloads.cancel();
+    _storeUi.dispose();
     browser.persist();
     browser.dispose();
     downloads.dispose();

@@ -52,11 +52,11 @@ class LoginSavePrompt {
       final updating = status?['exists'] == true;
       final choice = await showCrockDialog<String>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => CrockDialog(
           title: Row(
             children: [
               const CrockLogo(size: 30),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(updating ? 'Update password?' : 'Save password?'),
               ),

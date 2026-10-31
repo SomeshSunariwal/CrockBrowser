@@ -1,4 +1,5 @@
-import '../../core/theme/app_motion.dart';
+import '../../shared/widgets/crock_switch.dart';
+import '../../shared/widgets/crock_dropdown.dart';
 
 import 'dart:typed_data';
 
@@ -23,6 +24,10 @@ class _FilesScreenState extends State<FilesScreen> {
   String filter = 'all', query = '';
   bool busy = true, device = false;
   String? error;
+  int _refreshVersion = 0;
+  List<Map<String, dynamic>>? _filterSource;
+  String? _filterKey;
+  List<Map<String, dynamic>> _filtered = [];
   @override
   void initState() {
     super.initState();
@@ -31,6 +36,7 @@ class _FilesScreenState extends State<FilesScreen> {
   }
 
   Future<void> _refresh() async {
+    final version = ++_refreshVersion;
     setState(() => busy = true);
     try {
       final rows = await NativeBridge.instance.list(
@@ -47,7 +53,7 @@ class _FilesScreenState extends State<FilesScreen> {
             ? null
             : {'path': path.last},
       );
-      if (mounted) {
+      if (mounted && version == _refreshVersion) {
         setState(() {
           files = rows;
           error = null;
@@ -55,7 +61,7 @@ class _FilesScreenState extends State<FilesScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && version == _refreshVersion) {
         setState(() {
           error = e.toString();
           busy = false;
@@ -64,19 +70,26 @@ class _FilesScreenState extends State<FilesScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final rows = files
+  List<Map<String, dynamic>> _visibleFiles() {
+    final normalizedQuery = query.toLowerCase();
+    final key = '$device/$filter/$normalizedQuery';
+    if (identical(files, _filterSource) && key == _filterKey) return _filtered;
+    _filterSource = files;
+    _filterKey = key;
+    return _filtered = files
         .where(
           (file) =>
-              file['name'].toString().toLowerCase().contains(
-                query.toLowerCase(),
-              ) &&
+              file['name'].toString().toLowerCase().contains(normalizedQuery) &&
               (filter == 'all' ||
                   device ||
                   (file['mime'] as String? ?? '').startsWith('$filter/')),
         )
         .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _visibleFiles();
     return FeatureScaffold(
       title: widget.media ? 'Media library' : 'Files',
       actions: [
@@ -132,7 +145,7 @@ class _FilesScreenState extends State<FilesScreen> {
             ),
           ),
           if (widget.media)
-            SwitchListTile(
+            CrockSwitchListTile(
               title: const Text('Include device media'),
               subtitle: const Text(
                 'Grant access only when you want to browse device media.',
@@ -226,22 +239,24 @@ class _FilesScreenState extends State<FilesScreen> {
                             onTap: () => _open(file),
                             trailing: device
                                 ? null
-                                : PopupMenuButton<String>(
-                                    popUpAnimationStyle: AppMotion.style,
+                                : CrockPopupMenuButton<String>(
                                     onSelected: (action) =>
                                         _action(file, action),
                                     itemBuilder: (context) => [
                                       if (!directory)
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'share',
                                           child: Text('Share'),
                                         ),
                                       if (!directory)
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'export',
                                           child: Text('Save a copy…'),
                                         ),
                                       const PopupMenuItem(
+                                        height: 40,
                                         value: 'rename',
                                         child: Text('Rename'),
                                       ),
@@ -250,16 +265,19 @@ class _FilesScreenState extends State<FilesScreen> {
                                             file['name'].toString(),
                                           ))
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'extract',
                                           child: Text('Extract archive'),
                                         ),
                                       if (!directory)
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'private',
                                           child: Text('Copy to Private Space'),
                                         ),
                                       if (!directory)
                                         const PopupMenuItem(
+                                          height: 40,
                                           value: 'delete',
                                           child: Text('Delete'),
                                         ),
@@ -350,8 +368,8 @@ class _FilesScreenState extends State<FilesScreen> {
         final input = TextEditingController(text: file['name'] as String);
         name = await showCrockDialog<String>(
           context: context,
-          builder: (context) => CrockEditorDialog(
-            title: 'Rename file',
+          builder: (context) => CrockDialog(
+            title: Text('Rename file'),
             content: CrockEditorField(
               label: 'Filename',
               controller: input,

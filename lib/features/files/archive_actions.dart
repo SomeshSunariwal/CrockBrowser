@@ -57,7 +57,7 @@ class _ExtractDialogState extends State<_ExtractDialog> {
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !busy,
-    child: AlertDialog(
+    child: CrockDialog(
       title: const Text('Extract archive'),
       content: SingleChildScrollView(
         child: Column(
