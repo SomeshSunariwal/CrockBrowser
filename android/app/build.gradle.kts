@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.browser.crockbrowser"
+    namespace = "com.somesh.crockbrowser"
     compileSdk { version = release(37) }
     ndkVersion = "28.2.13676358"
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.browser.crockbrowser"
+        applicationId = "com.somesh.crockbrowser"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 33
@@ -39,15 +39,15 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5") {
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.0") {
         // The extractor uses Rhino's interpreter directly, not the desktop JSR-223 engine.
         exclude(group = "org.mozilla", module = "rhino-engine")
     }
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("org.tukaani:xz:1.10")
     implementation("com.github.junrar:junrar:8.1.2")
-    implementation("androidx.core:core:1.15.0")
-    implementation("androidx.webkit:webkit:1.16.0")
+    implementation("androidx.core:core:1.19.1")
+    implementation("androidx.webkit:webkit:1.18.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("com.google.mlkit:translate:17.0.3")
@@ -56,10 +56,10 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-dash:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.media3:media3-datasource-okhttp:1.11.1")
-    implementation("com.frostwire:jlibtorrent:2.0.12.9")
-    implementation("com.frostwire:jlibtorrent-android-arm:2.0.12.9")
-    implementation("com.frostwire:jlibtorrent-android-arm64:2.0.12.9")
-    implementation("com.frostwire:jlibtorrent-android-x86_64:2.0.12.9")
+    implementation("com.frostwire:jlibtorrent:2.0.15.2")
+    implementation("com.frostwire:jlibtorrent-android-arm:2.0.15.2")
+    implementation("com.frostwire:jlibtorrent-android-arm64:2.0.15.2")
+    implementation("com.frostwire:jlibtorrent-android-x86_64:2.0.15.2")
 }
 
 kotlin {

@@ -127,7 +127,7 @@ Replace `DEVICE_ID` with the identifier reported by `flutter devices`.
 
 The debug APK is written to `build/app/outputs/flutter-apk/app-debug.apk`. For a release APK, run `flutter build apk --release`; its output is `build/app/outputs/flutter-apk/app-release.apk`. The current release configuration uses development signing—configure your own signing key before publishing.
 
-The Android application ID is `com.browser.crockbrowser`.
+The Android application ID is `com.somesh.crockbrowser`.
 
 ### Setup troubleshooting
 

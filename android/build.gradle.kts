@@ -16,7 +16,7 @@ allprojects {
         }
         ivy {
             name = "FrostWireOfficialReleases"
-            url = uri("https://github.com/frostwire/frostwire-jlibtorrent/releases/download/release/2.0.12.9")
+            url = uri("https://github.com/frostwire/frostwire-jlibtorrent/releases/download/release/2.0.15.2")
             patternLayout { artifact("[artifact]-[revision].[ext]") }
             metadataSources { artifact() }
             content { includeGroup("com.frostwire") }
