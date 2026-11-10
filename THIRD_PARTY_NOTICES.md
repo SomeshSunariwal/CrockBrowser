@@ -10,10 +10,10 @@ obtained from the brands' official websites; the logos belong to their respectiv
 
 ## NewPipeExtractor
 
-YouTube extraction uses NewPipeExtractor v0.26.5, licensed under
+YouTube extraction uses NewPipeExtractor v0.27.0, licensed under
 GPL-3.0-or-later by Team NewPipe and its contributors.
 
-Source and license: https://github.com/TeamNewPipe/NewPipeExtractor/tree/v0.26.5
+Source and license: https://github.com/TeamNewPipe/NewPipeExtractor/tree/v0.27.0
 
 The license text is included in the APK at `licenses/NewPipeExtractor-GPL-3.0.txt`.
 Distribution must comply with that license, including its corresponding-source requirements.
@@ -25,7 +25,7 @@ The Android app also uses the following runtime dependencies.
 - Flutter/Dart — BSD-style licenses: https://github.com/flutter/flutter and https://github.com/dart-lang/sdk
 - AndroidX Core and Media3 — Apache 2.0: https://github.com/androidx/androidx and https://github.com/androidx/media
 - ZXing Android Embedded / ZXing — Apache 2.0: https://github.com/journeyapps/zxing-android-embedded and https://github.com/zxing/zxing
-- jlibtorrent 2.0.12.9 — wrapper and native dependencies have their own notices: https://github.com/frostwire/frostwire-jlibtorrent/tree/release/2.0.12.9 and https://www.libtorrent.org/
+- jlibtorrent 2.0.15.2 — wrapper and native dependencies have their own notices: https://github.com/frostwire/frostwire-jlibtorrent/tree/release/2.0.15.2 and https://www.libtorrent.org/
 - OkHttp / Okio — Apache 2.0: https://github.com/square/okhttp and https://github.com/square/okio
 - ML Kit on-device translation — Google SDK terms: https://developers.google.com/ml-kit/language/translation/android
 

@@ -1,13 +1,14 @@
-import '../../shared/widgets/crock_switch.dart';
-import '../../shared/widgets/crock_dropdown.dart';
-
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../../core/platform/native_bridge.dart';
-import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/compact_list_row.dart';
+import '../../shared/widgets/crock_dropdown.dart';
+import '../../shared/widgets/crock_switch.dart';
 import '../../shared/widgets/editor_dialog.dart';
+import '../../shared/widgets/feature_scaffold.dart';
+import '../../shared/widgets/sliver_card.dart';
 import 'archive_actions.dart';
 
 class FilesScreen extends StatefulWidget {
@@ -107,12 +108,25 @@ class _FilesScreenState extends State<FilesScreen> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
             child: TextField(
               onChanged: (value) => setState(() => query = value),
               decoration: const InputDecoration(
                 hintText: 'Search your files',
-                prefixIcon: Icon(Icons.search_rounded),
+                isDense: true,
+                constraints: BoxConstraints(minHeight: 36),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                prefixIconConstraints: BoxConstraints(
+                  minWidth: 0,
+                  minHeight: 36,
+                ),
+                prefixIcon: Padding(
+                  padding: EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(Icons.search_rounded, size: 20),
+                ),
               ),
             ),
           ),
@@ -146,6 +160,7 @@ class _FilesScreenState extends State<FilesScreen> {
           ),
           if (widget.media)
             CrockSwitchListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
               title: const Text('Include device media'),
               subtitle: const Text(
                 'Grant access only when you want to browse device media.',
@@ -173,13 +188,16 @@ class _FilesScreenState extends State<FilesScreen> {
               },
             ),
           if (path.isNotEmpty && !device)
-            ListTile(
-              leading: const Icon(Icons.arrow_upward),
-              title: const Text('Parent folder'),
-              onTap: () {
-                path.removeLast();
-                _refresh();
-              },
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: CompactListRow(
+                leading: const Icon(Icons.arrow_upward_rounded),
+                title: const Text('Parent folder'),
+                onTap: () {
+                  path.removeLast();
+                  _refresh();
+                },
+              ),
             ),
           Expanded(
             child: busy
@@ -205,92 +223,100 @@ class _FilesScreenState extends State<FilesScreen> {
                   )
                 : RefreshIndicator(
                     onRefresh: _refresh,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: rows.length,
-                      itemBuilder: (context, index) {
-                        final file = rows[index];
-                        final directory = file['directory'] == true;
-                        final mime = file['mime'] as String? ?? '';
-                        return Card(
-                          child: ListTile(
-                            leading: Icon(
-                              directory
-                                  ? Icons.folder_outlined
-                                  : mime.startsWith('video/')
-                                  ? Icons.play_circle_outline
-                                  : mime.startsWith('audio/')
-                                  ? Icons.music_note_outlined
-                                  : mime.startsWith('image/')
-                                  ? Icons.image_outlined
-                                  : Icons.insert_drive_file_outlined,
-                              color: const Color(0xFF087CFA),
+                    child: CustomScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                          sliver: SliverCard(
+                            sliver: SliverList.builder(
+                              itemCount: rows.length,
+                              itemBuilder: (context, index) {
+                                final file = rows[index];
+                                return CardListItem(
+                                  key: ValueKey(file['uri'] ?? file['path']),
+                                  index: index,
+                                  count: rows.length,
+                                  child: _fileRow(context, file),
+                                );
+                              },
                             ),
-                            title: Text(
-                              file['name'] as String,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              directory
-                                  ? 'Folder'
-                                  : byteLabel(file['size'] as num? ?? 0),
-                            ),
-                            onTap: () => _open(file),
-                            trailing: device
-                                ? null
-                                : CrockPopupMenuButton<String>(
-                                    onSelected: (action) =>
-                                        _action(file, action),
-                                    itemBuilder: (context) => [
-                                      if (!directory)
-                                        const PopupMenuItem(
-                                          height: 40,
-                                          value: 'share',
-                                          child: Text('Share'),
-                                        ),
-                                      if (!directory)
-                                        const PopupMenuItem(
-                                          height: 40,
-                                          value: 'export',
-                                          child: Text('Save a copy…'),
-                                        ),
-                                      const PopupMenuItem(
-                                        height: 40,
-                                        value: 'rename',
-                                        child: Text('Rename'),
-                                      ),
-                                      if (!directory &&
-                                          isSupportedArchive(
-                                            file['name'].toString(),
-                                          ))
-                                        const PopupMenuItem(
-                                          height: 40,
-                                          value: 'extract',
-                                          child: Text('Extract archive'),
-                                        ),
-                                      if (!directory)
-                                        const PopupMenuItem(
-                                          height: 40,
-                                          value: 'private',
-                                          child: Text('Copy to Private Space'),
-                                        ),
-                                      if (!directory)
-                                        const PopupMenuItem(
-                                          height: 40,
-                                          value: 'delete',
-                                          child: Text('Delete'),
-                                        ),
-                                    ],
-                                  ),
                           ),
-                        );
-                      },
+                        ),
+                      ],
                     ),
                   ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _fileRow(BuildContext context, Map<String, dynamic> file) {
+    final name = file['name'] as String;
+    final directory = file['directory'] == true;
+    final mime = file['mime'] as String? ?? '';
+    return CompactListRow(
+      leading: Icon(
+        directory
+            ? Icons.folder_outlined
+            : mime.startsWith('video/')
+            ? Icons.play_circle_outline
+            : mime.startsWith('audio/')
+            ? Icons.music_note_outlined
+            : mime.startsWith('image/')
+            ? Icons.image_outlined
+            : Icons.insert_drive_file_outlined,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: Text(name),
+      subtitle: Text(
+        directory ? 'Folder' : byteLabel(file['size'] as num? ?? 0),
+      ),
+      onTap: () => _open(file),
+      trailing: device
+          ? null
+          : CrockPopupMenuButton<String>(
+              onSelected: (action) => _action(file, action),
+              itemBuilder: (_) => [
+                if (!directory)
+                  const PopupMenuItem(
+                    height: 40,
+                    value: 'share',
+                    child: Text('Share'),
+                  ),
+                if (!directory)
+                  const PopupMenuItem(
+                    height: 40,
+                    value: 'export',
+                    child: Text('Save a copy…'),
+                  ),
+                const PopupMenuItem(
+                  height: 40,
+                  value: 'rename',
+                  child: Text('Rename'),
+                ),
+                if (!directory && isSupportedArchive(name))
+                  const PopupMenuItem(
+                    height: 40,
+                    value: 'extract',
+                    child: Text('Extract archive'),
+                  ),
+                if (!directory)
+                  const PopupMenuItem(
+                    height: 40,
+                    value: 'private',
+                    child: Text('Copy to Private Space'),
+                  ),
+                if (!directory)
+                  const PopupMenuItem(
+                    height: 40,
+                    value: 'delete',
+                    child: Text('Delete'),
+                  ),
+              ],
+            ),
     );
   }
 

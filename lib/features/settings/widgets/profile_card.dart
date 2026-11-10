@@ -68,9 +68,10 @@ class _ProfileCardState extends State<ProfileCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final photo = widget.store.setting('profilePhoto', '') as String;
-    final titleStyle = Theme.of(context).textTheme.titleLarge;
+    final titleStyle = theme.textTheme.titleLarge;
     final editStyle = TextButton.styleFrom(
       minimumSize: Size.zero,
       padding: EdgeInsets.zero,
@@ -92,6 +93,15 @@ class _ProfileCardState extends State<ProfileCard> {
         ),
         borderRadius: BorderRadius.circular(26),
         border: Border.all(color: colors.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow.withValues(
+              alpha: theme.brightness == Brightness.dark ? .26 : .12,
+            ),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
